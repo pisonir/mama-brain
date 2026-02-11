@@ -32,6 +32,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
             lastDay: DateTime.utc(2030, 12, 31),
             focusedDay: _focusedDay,
             calendarFormat: _calendarFormat,
+            startingDayOfWeek: StartingDayOfWeek.monday,
 
             // Load events for a specific day
             eventLoader: (day) {
