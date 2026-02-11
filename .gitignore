@@ -45,3 +45,6 @@ app.*.map.json
 /android/app/release
 
 .vscode/
+
+# Claude Code
+.claude/settings.local.json
