@@ -3,6 +3,7 @@ import '../../family/ui/family_avatar_row.dart';
 import '../../medications/ui/date_strip.dart';
 import '../../medications/ui/add_medication_sheet.dart';
 import '../../medications/ui/daily_medication_list.dart';
+import '../../../features/settings/ui/settings_sheet.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -14,6 +15,17 @@ class HomePage extends StatelessWidget {
         title: const Text("Mama Brain"),
         centerTitle: true,
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                builder: (_) => const SettingsSheet(),
+              );
+            },
+          ),
+        ],
       ),
       body: const Column(
         crossAxisAlignment: CrossAxisAlignment.start, // Align to left

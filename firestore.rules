@@ -1,0 +1,37 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users can only read/write their own user doc
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Any authenticated user can read an invite code (needed for join flow)
+    // Authenticated users can create codes (during group creation)
+    match /inviteCodes/{code} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if false;
+    }
+
+    // Family group access: only members of the group
+    match /familyGroups/{groupId} {
+      // Helper: check if the requesting user belongs to this group
+      function isGroupMember() {
+        return request.auth != null
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupId == groupId;
+      }
+
+      allow read: if isGroupMember();
+      allow create: if request.auth != null; // anyone can create a group
+      allow update, delete: if isGroupMember();
+
+      // Subcollections: members, medications, symptoms
+      match /{subcollection}/{docId} {
+        allow read, write: if isGroupMember();
+      }
+    }
+  }
+}

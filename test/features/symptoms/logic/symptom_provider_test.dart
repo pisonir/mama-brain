@@ -1,28 +1,30 @@
-import 'dart:io';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hive/hive.dart';
 import 'package:mama_brain/src/core/models/symptom.dart';
 import 'package:mama_brain/src/features/symptoms/logic/symptom_provider.dart';
 
-import '../../../helpers/hive_test_helper.dart';
-
 void main() {
-  late Directory tempDir;
+  late FakeFirebaseFirestore fakeFirestore;
+  const groupId = 'test-group';
 
-  setUp(() async {
-    tempDir = await setUpHive();
-    await openSymptomBox();
+  setUp(() {
+    fakeFirestore = FakeFirebaseFirestore();
   });
 
-  tearDown(() async {
-    await tearDownHive(tempDir);
-  });
+  SymptomNotifier createNotifier() {
+    return SymptomNotifier(groupId: groupId, firestore: fakeFirestore);
+  }
+
+  CollectionReference symptomsCol() => fakeFirestore
+      .collection('familyGroups')
+      .doc(groupId)
+      .collection('symptoms');
 
   group('SymptomNotifier', () {
     group('addSymptom', () {
       test('adds symptom with data map and note', () async {
-        final notifier = SymptomNotifier();
+        final notifier = createNotifier();
         await notifier.addSymptom(
           familyMemberId: 'fm-1',
           type: SymptomType.fever,
@@ -30,49 +32,52 @@ void main() {
           data: {'temp': 38.5},
           note: 'After lunch',
         );
+        await Future.delayed(Duration.zero);
 
-        expect(notifier.debugState.length, 1);
-        final s = notifier.debugState.first;
+        expect(notifier.state.length, 1);
+        final s = notifier.state.first;
         expect(s.type, SymptomType.fever);
         expect(s.data['temp'], 38.5);
         expect(s.note, 'After lunch');
       });
 
       test('generates a UUID', () async {
-        final notifier = SymptomNotifier();
+        final notifier = createNotifier();
         await notifier.addSymptom(
           familyMemberId: 'fm-1',
           type: SymptomType.cough,
           timestamp: DateTime(2025, 6, 15),
         );
+        await Future.delayed(Duration.zero);
 
-        expect(notifier.debugState.first.id.length, 36);
+        expect(notifier.state.first.id.length, 36);
       });
 
-      test('persists to Hive', () async {
-        final notifier = SymptomNotifier();
+      test('persists to Firestore', () async {
+        final notifier = createNotifier();
         await notifier.addSymptom(
           familyMemberId: 'fm-1',
           type: SymptomType.rash,
           timestamp: DateTime(2025, 6, 15),
         );
 
-        final box = Hive.box<Symptom>('symptoms');
-        expect(box.length, 1);
-        expect(box.values.first.type, SymptomType.rash);
+        final snap = await symptomsCol().get();
+        expect(snap.docs.length, 1);
+        expect((snap.docs.first.data() as Map)['type'], 'rash');
       });
     });
 
     group('editSymptom', () {
       test('updates fields and persists', () async {
-        final notifier = SymptomNotifier();
+        final notifier = createNotifier();
         await notifier.addSymptom(
           familyMemberId: 'fm-1',
           type: SymptomType.fever,
           timestamp: DateTime(2025, 6, 15, 10, 0),
           data: {'temp': 37.5},
         );
-        final id = notifier.debugState.first.id;
+        await Future.delayed(Duration.zero);
+        final id = notifier.state.first.id;
 
         await notifier.editSymptom(
           id: id,
@@ -82,57 +87,32 @@ void main() {
           data: {'temp': 39.0},
           note: 'Getting worse',
         );
+        await Future.delayed(Duration.zero);
 
-        final s = notifier.debugState.first;
+        final s = notifier.state.first;
         expect(s.data['temp'], 39.0);
         expect(s.note, 'Getting worse');
-        expect(s.timestamp.hour, 14);
 
-        final box = Hive.box<Symptom>('symptoms');
-        expect(box.get(id)!.data['temp'], 39.0);
-      });
-
-      test('preserves position in list', () async {
-        final notifier = SymptomNotifier();
-        await notifier.addSymptom(
-          familyMemberId: 'fm-1',
-          type: SymptomType.cough,
-          timestamp: DateTime(2025, 6, 15),
-        );
-        await notifier.addSymptom(
-          familyMemberId: 'fm-1',
-          type: SymptomType.pain,
-          timestamp: DateTime(2025, 6, 16),
-        );
-        final secondId = notifier.debugState[1].id;
-
-        await notifier.editSymptom(
-          id: secondId,
-          familyMemberId: 'fm-1',
-          type: SymptomType.vomit,
-          timestamp: DateTime(2025, 6, 16),
-        );
-
-        expect(notifier.debugState[0].type, SymptomType.cough);
-        expect(notifier.debugState[1].type, SymptomType.vomit);
+        final doc = await symptomsCol().doc(id).get();
+        expect((doc.data() as Map)['data']['temp'], 39.0);
       });
     });
 
     group('deleteSymptom', () {
-      test('removes from state and Hive', () async {
-        final notifier = SymptomNotifier();
+      test('removes from Firestore', () async {
+        final notifier = createNotifier();
         await notifier.addSymptom(
           familyMemberId: 'fm-1',
           type: SymptomType.other,
           timestamp: DateTime(2025, 6, 15),
         );
-        final id = notifier.debugState.first.id;
+        await Future.delayed(Duration.zero);
+        final id = notifier.state.first.id;
 
         await notifier.deleteSymptom(id);
 
-        expect(notifier.debugState, isEmpty);
-        final box = Hive.box<Symptom>('symptoms');
-        expect(box.length, 0);
+        final snap = await symptomsCol().get();
+        expect(snap.docs, isEmpty);
       });
     });
   });

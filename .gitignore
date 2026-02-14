@@ -46,5 +46,10 @@ app.*.map.json
 
 .vscode/
 
+# Firebase
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+lib/firebase_options.dart
+
 # Claude Code
 .claude/settings.local.json

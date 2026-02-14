@@ -1,43 +1,22 @@
-import 'package:hive/hive.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-part 'medication.g.dart';
-
-// Enums also need adapters to be stored
-@HiveType(typeId: 1)
 enum MedicationType {
-  @HiveField(0)
   oneOff,
-
-  @HiveField(1)
   temporary,
-
-  @HiveField(2)
   permanent,
 }
 
-@HiveType(typeId: 2) // Unique typeId for this model across the app
 class Medication {
-  @HiveField(0)
   final String id;
-
-  @HiveField(1)
   final String name;
-
-  @HiveField(2)
   final String familyMemberId;
-
-  @HiveField(3)
   final MedicationType type;
-
-  @HiveField(4)
   final DateTime startDate;
 
   // Only for temporary medications
-  @HiveField(5)
   final int? durationInDays;
 
   // A history of when this specific medication was taken. We store DateTimes here
-  @HiveField(6)
   final List<DateTime> takenLogs;
 
   Medication({
@@ -50,7 +29,7 @@ class Medication {
     this.takenLogs = const [],
   });
 
-  // A helper method to create a copy of the objext with modified fields
+  // A helper method to create a copy of the object with modified fields
   // (Since our class is immutable/final, we can't just set variables)
   Medication copyWith({
     String? id,
@@ -69,6 +48,33 @@ class Medication {
       startDate: startDate ?? this.startDate,
       durationInDays: durationInDays ?? this.durationInDays,
       takenLogs: takenLogs ?? this.takenLogs,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'familyMemberId': familyMemberId,
+      'type': type.name,
+      'startDate': Timestamp.fromDate(startDate),
+      'durationInDays': durationInDays,
+      'takenLogs': takenLogs.map((dt) => Timestamp.fromDate(dt)).toList(),
+    };
+  }
+
+  factory Medication.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data()! as Map<String, dynamic>;
+    return Medication(
+      id: doc.id,
+      name: data['name'] as String,
+      familyMemberId: data['familyMemberId'] as String,
+      type: MedicationType.values.byName(data['type'] as String),
+      startDate: (data['startDate'] as Timestamp).toDate(),
+      durationInDays: data['durationInDays'] as int?,
+      takenLogs: (data['takenLogs'] as List<dynamic>?)
+              ?.map((t) => (t as Timestamp).toDate())
+              .toList() ??
+          [],
     );
   }
 }

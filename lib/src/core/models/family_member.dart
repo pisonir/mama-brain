@@ -1,17 +1,8 @@
-import 'package:hive/hive.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-// This file tells the generator to write code for this class
-part 'family_member.g.dart';
-
-@HiveType(typeId: 0) // Unique typeId for this model across the app
 class FamilyMember {
-  @HiveField(0)
   final String id;
-
-  @HiveField(1)
   final String name;
-
-  @HiveField(2)
   final int colorValue; // We store color as an integer (0xFF...)
 
   FamilyMember({
@@ -19,4 +10,20 @@ class FamilyMember {
     required this.name,
     required this.colorValue,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'colorValue': colorValue,
+    };
+  }
+
+  factory FamilyMember.fromDoc(DocumentSnapshot doc) {
+    final data = doc.data()! as Map<String, dynamic>;
+    return FamilyMember(
+      id: doc.id,
+      name: data['name'] as String,
+      colorValue: data['colorValue'] as int,
+    );
+  }
 }

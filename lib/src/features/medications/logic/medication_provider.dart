@@ -1,38 +1,56 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/models/medication.dart';
+import '../../group/logic/group_provider.dart';
 
-final medicationProvider = StateNotifierProvider<MedicationNotifier, List<Medication>>((ref) {
-  return MedicationNotifier();
+final medicationProvider =
+    StateNotifierProvider<MedicationNotifier, List<Medication>>((ref) {
+  final groupId = ref.watch(groupIdProvider);
+  if (groupId == null) return MedicationNotifier.empty();
+  return MedicationNotifier(groupId: groupId);
 });
 
 class MedicationNotifier extends StateNotifier<List<Medication>> {
-  MedicationNotifier() : super([]) {
-    loadMedications();
+  final String? _groupId;
+  late final FirebaseFirestore _firestore;
+
+  MedicationNotifier({
+    required String groupId,
+    FirebaseFirestore? firestore,
+  })  : _groupId = groupId,
+        super([]) {
+    _firestore = firestore ?? FirebaseFirestore.instance;
+    _listen();
   }
 
-  Box<Medication> get _box => Hive.box<Medication>('medications');
+  MedicationNotifier.empty()
+      : _groupId = null,
+        super([]);
 
-  void loadMedications() {
-    state = _box.values.toList();
+  CollectionReference get _col => _firestore
+      .collection('familyGroups')
+      .doc(_groupId)
+      .collection('medications');
+
+  void _listen() {
+    _col.snapshots().listen((snap) {
+      state = snap.docs.map((d) => Medication.fromDoc(d)).toList();
+    });
   }
 
-  Future<void> deleteMedication(String id) async {
-    await _box.delete(id);
-    state = state.where((med) => med.id != id).toList();
-  }
+  // Kept for tests — no-op in Firestore version
+  void loadMedications() {}
 
   Future<void> addMedication({
     required String name,
     required String familyMemberId,
     required MedicationType type,
     required DateTime startDate,
-    int? durationInDays, // Nullable, because 'Permanent' and 'OneOff' types don't need it
+    int? durationInDays,
   }) async {
     final id = const Uuid().v4();
-
     final newMed = Medication(
       id: id,
       name: name,
@@ -41,8 +59,7 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
       startDate: startDate,
       durationInDays: durationInDays,
     );
-    await _box.put(id, newMed);
-    state = [...state, newMed];
+    await _col.doc(id).set(newMed.toMap());
   }
 
   Future<void> editMedication({
@@ -61,11 +78,11 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
       startDate: originalStartDate,
       durationInDays: durationInDays,
     );
-    await _box.put(id, updatedMed);
-    state = [
-      for (final med in state)
-        if (med.id == id) updatedMed else med,
-    ];
+    await _col.doc(id).set(updatedMed.toMap());
+  }
+
+  Future<void> deleteMedication(String id) async {
+    await _col.doc(id).delete();
   }
 
   Future<void> toggleTaken(String id, DateTime date) async {
@@ -80,18 +97,12 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
     List<DateTime> newLogs = [...med.takenLogs];
 
     if (existingLogIndex >= 0) {
-      // Log exists, untoggle it
       newLogs.removeAt(existingLogIndex);
     } else {
       newLogs.add(DateTime.now());
     }
 
     final updatedMed = med.copyWith(takenLogs: newLogs);
-    await _box.put(id, updatedMed);
-
-    state = [
-      for (final m in state)
-        if (m.id == id) updatedMed else m,
-    ];
+    await _col.doc(id).set(updatedMed.toMap());
   }
 }

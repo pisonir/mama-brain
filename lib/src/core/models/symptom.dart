@@ -1,44 +1,25 @@
-import 'package:hive/hive.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-part 'symptom.g.dart';
-
-@HiveType(typeId: 3)
 enum SymptomType {
-  @HiveField(0)
   fever,
-  @HiveField(1)
   cough,
-  @HiveField(2)
   vomit,
-  @HiveField(3)
   pain,
-  @HiveField(4)
   rash,
-  @HiveField(5)
   other,
 }
 
-@HiveType(typeId: 4) // Unique typeId for this model across the app
 class Symptom {
-  @HiveField(0)
   final String id;
-
-  @HiveField(1)
   final String familyMemberId;
-
-  @HiveField(2)
   final DateTime timestamp;
-
-  @HiveField(3)
   final SymptomType type;
 
   // Flexible data storage.
   // For Fever: {'temp': 38.5}
   // For Cough: {'style': 'wet'}
-  @HiveField(4)
   final Map<String, dynamic> data;
 
-  @HiveField(5)
   final String? note;
 
   Symptom({
@@ -49,4 +30,26 @@ class Symptom {
     this.data = const {},
     this.note,
   });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'familyMemberId': familyMemberId,
+      'timestamp': Timestamp.fromDate(timestamp),
+      'type': type.name,
+      'data': data,
+      'note': note,
+    };
+  }
+
+  factory Symptom.fromDoc(DocumentSnapshot doc) {
+    final d = doc.data()! as Map<String, dynamic>;
+    return Symptom(
+      id: doc.id,
+      familyMemberId: d['familyMemberId'] as String,
+      timestamp: (d['timestamp'] as Timestamp).toDate(),
+      type: SymptomType.values.byName(d['type'] as String),
+      data: (d['data'] as Map<String, dynamic>?) ?? {},
+      note: d['note'] as String?,
+    );
+  }
 }

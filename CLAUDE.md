@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mama Brain is a Flutter family health tracking app for logging medications, symptoms, and medical history. It uses a local-first architecture with Hive for persistence and Riverpod for state management.
+Mama Brain is a Flutter family health tracking app for logging medications, symptoms, and medical history. It uses Firebase Firestore for cloud persistence (with offline cache), Google Sign-In for authentication, invite-code-based family groups for multi-device sharing, and Riverpod for state management.
 
 ## Common Commands
 
@@ -14,10 +14,6 @@ flutter pub get
 
 # Run the app
 flutter run
-
-# Run code generation (Hive adapters & Riverpod providers)
-dart run build_runner build
-dart run build_runner watch          # continuous rebuild on file changes
 
 # Run all tests
 flutter test
@@ -31,37 +27,63 @@ flutter analyze
 # Generate launcher icons / splash screen
 dart run flutter_launcher_icons
 dart run flutter_native_splash:create
+
+# Firebase: deploy security rules
+firebase deploy --only firestore:rules
 ```
 
 ## Architecture
 
-**Pattern:** Feature-based organization with Riverpod state management and Hive local database.
+**Pattern:** Feature-based organization with Riverpod state management and Firebase Firestore.
+
+### Firestore Data Structure
+
+```
+/familyGroups/{groupId}
+    createdBy, inviteCode, createdAt
+    /members/{memberId}       -- name, colorValue
+    /medications/{medId}      -- name, familyMemberId, type, startDate, durationInDays, takenLogs
+    /symptoms/{symptomId}     -- familyMemberId, timestamp, type, data, note
+
+/users/{uid}                  -- email, displayName, groupId
+/inviteCodes/{code}           -- groupId (fast lookup for join flow)
+```
 
 ### Source Layout (`lib/src/`)
 
-- **`core/models/`** — Hive-annotated data models (`FamilyMember`, `Medication`, `Symptom`). Each model uses `@HiveType`/`@HiveField` annotations and has a generated adapter. When adding or modifying model fields, run `dart run build_runner build` to regenerate adapters.
+- **`core/models/`** — Data models (`FamilyMember`, `Medication`, `Symptom`, `FamilyGroup`, `AppUser`). Each model has `toMap()` and `fromDoc(DocumentSnapshot)` for Firestore serialization.
+- **`core/firebase/`** — `FirestoreRefs` helper providing typed collection references scoped to the current family group.
 - **`core/theme/`** — `AppTheme` class defining Material 3 theme with Nunito font and pastel color palette.
 - **`features/`** — Each feature has `logic/` (Riverpod providers) and `ui/` (widgets) subdirectories:
+  - **`auth/`** — Google Sign-In, `authStateProvider` (StreamProvider), `appUserProvider` (FutureProvider)
+  - **`group/`** — Family group creation/joining with invite codes, `groupIdProvider`
   - **`family/`** — Family member CRUD, avatar row with colored circles
   - **`medications/`** — Medication tracking with date strip, daily filtering, duration logic (one-off / temporary / permanent)
   - **`symptoms/`** — Symptom logging (fever, cough, vomit, pain, rash, other) with flexible `Map<String, dynamic>` data
   - **`history/`** — Calendar view aggregating medications and symptoms via `HistoryEvent`
   - **`home/`** — Main medications tab composing date strip + family row + medication list
+  - **`settings/`** — Settings sheet showing user info, invite code, sign out button
 
 ### State Management
 
-- **`StateNotifierProvider`** for mutable collections (family members, medications, symptoms) — these read from and write to Hive boxes.
-- **`Provider`** for derived/computed state (e.g., `dailyMedicationsProvider` filters by selected date and family member).
+- **`StateNotifierProvider`** for mutable collections (family members, medications, symptoms) — these subscribe to Firestore snapshot streams and write to Firestore docs. State updates arrive automatically from the snapshot listener.
+- **`StreamProvider`** for auth state (`authStateProvider` watching `FirebaseAuth.authStateChanges()`).
+- **`FutureProvider`** for user data (`appUserProvider` reading `/users/{uid}` doc).
+- **`Provider`** for derived/computed state (e.g., `dailyMedicationsProvider`, `groupIdProvider`).
 - **`StateProvider`** for simple UI state (e.g., selected date).
 - Widgets extend `ConsumerWidget` or use `ConsumerState` for Riverpod access.
 
-### Database (Hive)
+### Database (Firebase Firestore)
 
-Three boxes opened at startup in `main.dart`: `family_members`, `medications`, `symptoms`. All adapter registrations happen before `runApp()`. When adding a new model, register its adapter in `main.dart` and open a box for it.
+Firebase is initialized in `main.dart` via `Firebase.initializeApp()`. Notifiers accept a `groupId` from `groupIdProvider` and an optional `FirebaseFirestore` parameter (for testability with `FakeFirebaseFirestore`). Each notifier subscribes to its collection's snapshots and writes directly to Firestore docs.
+
+### Auth Flow
+
+`app.dart` uses auth-aware routing: signed out → `LoginPage`, signed in but no group → `GroupSetupPage`, has group → `MainScreen`.
 
 ### Navigation
 
-Bottom navigation bar in `MainScreen` with three tabs: Medications, Symptoms, History. New-item flows use modal bottom sheets; family member creation uses a dialog.
+Bottom navigation bar in `MainScreen` with three tabs: Medications, Symptoms, History. New-item flows use modal bottom sheets; family member creation uses a dialog. Settings accessible via gear icon in HomePage AppBar.
 
 ## Key Conventions
 
@@ -69,6 +91,7 @@ Bottom navigation bar in `MainScreen` with three tabs: Medications, Symptoms, Hi
 - Every entity gets a UUID string as its ID via the `uuid` package.
 - Family member colors are stored as `int` values and converted to `Color` objects in the UI.
 - Medication duration types: `oneOff` (single day), `temporary` (start + duration days), `permanent` (start date onward indefinitely).
+- Firestore serialization: `DateTime` ↔ `Timestamp`, enums stored as `.name` strings.
 
 ## Testing
 
@@ -76,15 +99,14 @@ Unit tests live in `test/features/`, mirroring the source layout. Run all with `
 
 ### Test Layout
 
-- **`test/helpers/hive_test_helper.dart`** — Shared Hive setUp/tearDown: creates a temp directory, initializes Hive, registers all adapters (with `isAdapterRegistered` guards), and cleans up after each test.
-- **`test/helpers/fake_notifiers.dart`** — `FakeFamilyNotifier`, `FakeMedicationNotifier`, `FakeSymptomNotifier` that extend the real notifier classes but override load methods to inject state without touching Hive. Used with `ProviderContainer` overrides for derived-provider tests.
-- **`test/features/family/logic/`** — `FamilyNotifier` CRUD tests (Hive-backed).
-- **`test/features/medications/logic/`** — `MedicationNotifier` CRUD + `toggleTaken` tests (Hive-backed), `dailyMedicationsProvider` filtering tests (fake overrides), `getWeekDatesFrom` + date StateProvider tests (pure).
-- **`test/features/symptoms/logic/`** — `SymptomNotifier` CRUD tests (Hive-backed), `dailySymptomProvider` filtering/sorting tests (fake overrides).
+- **`test/helpers/fake_notifiers.dart`** — `FakeFamilyNotifier`, `FakeMedicationNotifier`, `FakeSymptomNotifier` that extend the real notifier classes using `super.empty()` and override load methods to inject state without touching Firestore. Used with `ProviderContainer` overrides for derived-provider tests.
+- **`test/features/family/logic/`** — `FamilyNotifier` CRUD tests (using `FakeFirebaseFirestore`).
+- **`test/features/medications/logic/`** — `MedicationNotifier` CRUD + `toggleTaken` tests (using `FakeFirebaseFirestore`), `dailyMedicationsProvider` filtering tests (fake overrides), `getWeekDatesFrom` + date StateProvider tests (pure).
+- **`test/features/symptoms/logic/`** — `SymptomNotifier` CRUD tests (using `FakeFirebaseFirestore`), `dailySymptomProvider` filtering/sorting tests (fake overrides).
 - **`test/features/history/logic/`** — `historyEventsProvider` tests covering symptom events, oneOff/temporary/permanent medication event generation, and mixed-event grouping (fake overrides).
 
 ### Writing New Tests
 
-- **Hive-backed tests** (testing notifiers directly): use `setUpHive()` / `tearDownHive()` from `hive_test_helper.dart` and open the required box before creating a notifier.
-- **Derived-provider tests** (testing computed providers): create a `ProviderContainer` with `overrideWith` using the fake notifiers from `fake_notifiers.dart` — no Hive setup needed.
+- **Firestore-backed tests** (testing notifiers directly): create a `FakeFirebaseFirestore` instance and pass it to the notifier constructor along with a test `groupId`. Use `await Future.delayed(Duration.zero)` after writes to let snapshot listeners fire.
+- **Derived-provider tests** (testing computed providers): create a `ProviderContainer` with `overrideWith` using the fake notifiers from `fake_notifiers.dart` — no Firestore setup needed.
 - **`toggleTaken` caveat**: the method logs `DateTime.now()` when toggling on, so tests that toggle off must use today's date for the day-match comparison to work.

@@ -1,95 +1,104 @@
-import 'dart:io';
-
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hive/hive.dart';
-import 'package:mama_brain/src/core/models/family_member.dart';
 import 'package:mama_brain/src/features/family/logic/family_provider.dart';
 
-import '../../../helpers/hive_test_helper.dart';
-
 void main() {
-  late Directory tempDir;
+  late FakeFirebaseFirestore fakeFirestore;
+  const groupId = 'test-group';
 
-  setUp(() async {
-    tempDir = await setUpHive();
-    await openFamilyBox();
+  setUp(() {
+    fakeFirestore = FakeFirebaseFirestore();
   });
 
-  tearDown(() async {
-    await tearDownHive(tempDir);
-  });
+  FamilyNotifier createNotifier() {
+    return FamilyNotifier(groupId: groupId, firestore: fakeFirestore);
+  }
 
   group('FamilyNotifier', () {
     group('loadMembers', () {
-      test('empty box produces empty state', () {
-        final notifier = FamilyNotifier();
-        expect(notifier.debugState, isEmpty);
+      test('empty collection produces empty state', () async {
+        final notifier = createNotifier();
+        await Future.delayed(Duration.zero);
+        expect(notifier.state, isEmpty);
       });
 
-      test('pre-populated box loads into state', () async {
-        final box = Hive.box<FamilyMember>('family_members');
-        final member = FamilyMember(
-          id: 'pre-1',
-          name: 'Alice',
-          colorValue: 0xFFFF0000,
-        );
-        await box.put(member.id, member);
+      test('pre-populated collection loads into state', () async {
+        await fakeFirestore
+            .collection('familyGroups')
+            .doc(groupId)
+            .collection('members')
+            .doc('pre-1')
+            .set({'name': 'Alice', 'colorValue': 0xFFFF0000});
 
-        final notifier = FamilyNotifier();
-        expect(notifier.debugState.length, 1);
-        expect(notifier.debugState.first.name, 'Alice');
+        final notifier = createNotifier();
+        await Future.delayed(Duration.zero);
+
+        expect(notifier.state.length, 1);
+        expect(notifier.state.first.name, 'Alice');
       });
     });
 
     group('addMember', () {
-      test('appends member to state', () async {
-        final notifier = FamilyNotifier();
+      test('appends member to Firestore and state updates via snapshot', () async {
+        final notifier = createNotifier();
         await notifier.addMember(name: 'Bob', colorValue: 0xFF00FF00);
+        await Future.delayed(Duration.zero);
 
-        expect(notifier.debugState.length, 1);
-        expect(notifier.debugState.first.name, 'Bob');
-        expect(notifier.debugState.first.colorValue, 0xFF00FF00);
+        expect(notifier.state.length, 1);
+        expect(notifier.state.first.name, 'Bob');
+        expect(notifier.state.first.colorValue, 0xFF00FF00);
       });
 
       test('generates a UUID for the new member', () async {
-        final notifier = FamilyNotifier();
+        final notifier = createNotifier();
         await notifier.addMember(name: 'Carol', colorValue: 0xFF0000FF);
+        await Future.delayed(Duration.zero);
 
-        final id = notifier.debugState.first.id;
+        final id = notifier.state.first.id;
         expect(id, isNotEmpty);
-        // UUID v4 has 36 characters with hyphens
         expect(id.length, 36);
       });
 
-      test('persists to Hive', () async {
-        final notifier = FamilyNotifier();
+      test('persists to Firestore', () async {
+        final notifier = createNotifier();
         await notifier.addMember(name: 'Dave', colorValue: 0xFF123456);
 
-        final box = Hive.box<FamilyMember>('family_members');
-        expect(box.length, 1);
-        expect(box.values.first.name, 'Dave');
+        final snap = await fakeFirestore
+            .collection('familyGroups')
+            .doc(groupId)
+            .collection('members')
+            .get();
+        expect(snap.docs.length, 1);
+        expect(snap.docs.first.data()['name'], 'Dave');
       });
     });
 
     group('deleteMember', () {
-      test('removes member from state and Hive', () async {
-        final notifier = FamilyNotifier();
+      test('removes member from Firestore', () async {
+        final notifier = createNotifier();
         await notifier.addMember(name: 'Eve', colorValue: 0xFFABCDEF);
-        final id = notifier.debugState.first.id;
+        await Future.delayed(Duration.zero);
+        final id = notifier.state.first.id;
 
         await notifier.deleteMember(id);
 
-        expect(notifier.debugState, isEmpty);
-        final box = Hive.box<FamilyMember>('family_members');
-        expect(box.length, 0);
+        final snap = await fakeFirestore
+            .collection('familyGroups')
+            .doc(groupId)
+            .collection('members')
+            .get();
+        expect(snap.docs, isEmpty);
       });
 
       test('no-ops on missing ID', () async {
-        final notifier = FamilyNotifier();
+        final notifier = createNotifier();
         await notifier.addMember(name: 'Frank', colorValue: 0xFF000000);
+        await Future.delayed(Duration.zero);
 
         await notifier.deleteMember('nonexistent-id');
-        expect(notifier.debugState.length, 1);
+        await Future.delayed(Duration.zero);
+
+        expect(notifier.state.length, 1);
       });
     });
   });

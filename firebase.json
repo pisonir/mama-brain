@@ -1,0 +1,28 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "mama-brain-63a14",
+          "appId": "1:247545736057:android:6ad6033408b1442f9fdda8",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "mama-brain-63a14",
+          "configurations": {
+            "android": "1:247545736057:android:6ad6033408b1442f9fdda8",
+            "ios": "1:247545736057:ios:5347251505c96e8f9fdda8",
+            "macos": "1:247545736057:ios:5347251505c96e8f9fdda8",
+            "web": "1:247545736057:web:68dc2b7665d254e69fdda8",
+            "windows": "1:247545736057:web:3dfd4063681192ca9fdda8"
+          }
+        }
+      }
+    }
+  }
+}

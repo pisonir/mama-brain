@@ -1,8 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/models/symptom.dart';
+import '../../group/logic/group_provider.dart';
 import '../../medications/logic/date_provider.dart';
 
 final dailySymptomProvider = Provider<List<Symptom>>((ref) {
@@ -13,23 +14,47 @@ final dailySymptomProvider = Provider<List<Symptom>>((ref) {
     return symptom.timestamp.year == selectedDate.year &&
         symptom.timestamp.month == selectedDate.month &&
         symptom.timestamp.day == selectedDate.day;
-  }).toList()..sort((a, b) => b.timestamp.compareTo(a.timestamp)); // Sort by time (AM -> PM)
+  }).toList()
+    ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 });
 
-final symptomProvider = StateNotifierProvider<SymptomNotifier, List<Symptom>>((ref) {
-  return SymptomNotifier();
+final symptomProvider =
+    StateNotifierProvider<SymptomNotifier, List<Symptom>>((ref) {
+  final groupId = ref.watch(groupIdProvider);
+  if (groupId == null) return SymptomNotifier.empty();
+  return SymptomNotifier(groupId: groupId);
 });
 
 class SymptomNotifier extends StateNotifier<List<Symptom>> {
-  SymptomNotifier() : super([]) {
-    loadSymptoms();
+  final String? _groupId;
+  late final FirebaseFirestore _firestore;
+
+  SymptomNotifier({
+    required String groupId,
+    FirebaseFirestore? firestore,
+  })  : _groupId = groupId,
+        super([]) {
+    _firestore = firestore ?? FirebaseFirestore.instance;
+    _listen();
   }
 
-  Box<Symptom> get _box => Hive.box<Symptom>('symptoms');
+  SymptomNotifier.empty()
+      : _groupId = null,
+        super([]);
 
-  void loadSymptoms() {
-    state = _box.values.toList();
+  CollectionReference get _col => _firestore
+      .collection('familyGroups')
+      .doc(_groupId)
+      .collection('symptoms');
+
+  void _listen() {
+    _col.snapshots().listen((snap) {
+      state = snap.docs.map((d) => Symptom.fromDoc(d)).toList();
+    });
   }
+
+  // Kept for tests — no-op in Firestore version
+  void loadSymptoms() {}
 
   Future<void> addSymptom({
     required String familyMemberId,
@@ -46,9 +71,7 @@ class SymptomNotifier extends StateNotifier<List<Symptom>> {
       data: data,
       note: note,
     );
-
-    await _box.put(newSymptom.id, newSymptom);
-    state = [...state, newSymptom];
+    await _col.doc(newSymptom.id).set(newSymptom.toMap());
   }
 
   Future<void> editSymptom({
@@ -67,16 +90,10 @@ class SymptomNotifier extends StateNotifier<List<Symptom>> {
       data: data,
       note: note,
     );
-
-    await _box.put(id, updatedSymptom);
-    state = [
-      for (final s in state)
-        if (s.id == id) updatedSymptom else s,
-    ];
+    await _col.doc(id).set(updatedSymptom.toMap());
   }
 
   Future<void> deleteSymptom(String id) async {
-    await _box.delete(id);
-    state = state.where((symptom) => symptom.id != id).toList();
+    await _col.doc(id).delete();
   }
 }
