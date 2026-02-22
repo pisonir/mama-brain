@@ -55,12 +55,22 @@ class DailyMedicationList extends ConsumerWidget {
       itemCount: meds.length,
       itemBuilder: (context, index) {
         final med = meds[index];
+        final selectedDate = ref.watch(selectedDateProvider);
+        final isTaken = _isTaken(med, selectedDate);
         String subtitleText = med.type.name;
         if (med.type == MedicationType.oneOff) {
-          final timeString = DateFormat.Hm().format(med.startDate);
-          subtitleText = 'Taken at $timeString';
+          if (isTaken) {
+            final takenLog = med.takenLogs.firstWhere(
+              (log) =>
+                  log.year == selectedDate.year &&
+                  log.month == selectedDate.month &&
+                  log.day == selectedDate.day,
+            );
+            subtitleText = 'Taken at ${DateFormat.Hm().format(takenLog)}';
+          } else {
+            subtitleText = 'One-off';
+          }
         }
-        final isTaken = _isTaken(med, ref.watch(selectedDateProvider));
 
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
