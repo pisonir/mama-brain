@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
+import '../../../core/models/family_member.dart';
+import '../../family/logic/family_provider.dart';
 import '../logic/history_event.dart';
 import '../logic/history_provider.dart';
 
@@ -19,6 +21,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   @override
   Widget build(BuildContext context) {
     final events = ref.watch(historyEventsProvider);
+    final familyMembers = ref.watch(familyProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -88,12 +91,59 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
           ),
 
           const SizedBox(height: 10),
-          
+
+          // Color legend for family members
+          if (familyMembers.isNotEmpty) _buildFamilyLegend(familyMembers),
+
           // Legend / details for selected day
           Expanded(
             child: _selectedDay == null
                 ? const Center(child: Text('Select a day to see details.'))
                 : _buildDayDetails(events),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Horizontal legend showing each family member's color and name
+  Widget _buildFamilyLegend(List<FamilyMember> members) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            const Text(
+              'Members:',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 8),
+            ...members.map((member) => _buildLegendItem(member)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(FamilyMember member) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: Color(member.colorValue),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            member.name,
+            style: const TextStyle(fontSize: 12),
           ),
         ],
       ),
