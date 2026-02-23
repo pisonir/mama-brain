@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mama_brain/src/core/models/family_member.dart';
 import 'package:mama_brain/src/core/models/medication.dart';
+import 'package:mama_brain/src/features/family/logic/family_provider.dart';
 import 'package:mama_brain/src/features/medications/logic/date_provider.dart';
 import 'package:mama_brain/src/features/medications/logic/medication_provider.dart';
 import 'package:mama_brain/src/features/medications/ui/add_medication_sheet.dart';
@@ -45,6 +47,7 @@ class DailyMedicationList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final meds = ref.watch(dailyMedicationsProvider);
+    final familyMembers = ref.watch(familyProvider);
 
     if (meds.isEmpty) {
       return const Center(child: Text('No medications for the selected date.'));
@@ -72,6 +75,11 @@ class DailyMedicationList extends ConsumerWidget {
           }
         }
 
+        final member = familyMembers.firstWhere(
+          (m) => m.id == med.familyMemberId,
+          orElse: () => FamilyMember(id: '', name: 'Unknown', colorValue: 0xFF9E9E9E),
+        );
+
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           color: isTaken ? Colors.green.shade50 : Colors.white,
@@ -92,7 +100,25 @@ class DailyMedicationList extends ConsumerWidget {
                 color: isTaken ? Colors.grey : Colors.black,
               ),
             ),
-            subtitle: Text(subtitleText),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 6,
+                      backgroundColor: Color(member.colorValue),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      member.name,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+                Text(subtitleText),
+              ],
+            ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min, // <-- CRITICAL
               children: [
