@@ -67,7 +67,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
                 return ListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(), // Don't scroll inside the cell
-                  itemCount: dayEvents.length > 3 ? 3 : dayEvents.length, // Max 3 items per cell
+                  itemCount: dayEvents.length,
                   itemBuilder: (context, index) {
                     final event = dayEvents[index] as HistoryEvent;
                     return _buildEventBar(event);
