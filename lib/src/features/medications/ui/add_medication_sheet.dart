@@ -16,6 +16,9 @@ class AddMedicationSheet extends ConsumerStatefulWidget {
 class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
   late final TextEditingController _nameController;
 
+  // Tracks which quick-chip name is highlighted (null if user typed manually)
+  String? _selectedQuickChipName;
+
   // We default to "One Off" as it's the most common
   MedicationType _selectedType = MedicationType.oneOff;
 
@@ -24,6 +27,15 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
 
   // We make it nullable (?) because initially, no one might be selected
   String? _selectedMemberId;
+
+  static const _quickChipNames = [
+    "Ibuprofen",
+    "Paracetamol",
+    "Antibiotic",
+    "Vitamin D",
+    "Iron",
+    "Fungi Cream",
+  ];
 
   @override
   void initState() {
@@ -37,7 +49,18 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
       if (med.durationInDays != null) {
         _durationDays = med.durationInDays!.toDouble();
       }
+      // Pre-highlight chip if editing a medication whose name matches one
+      if (_quickChipNames.contains(med.name)) {
+        _selectedQuickChipName = med.name;
+      }
     }
+    // Clear chip highlight when user edits the text field manually
+    _nameController.addListener(() {
+      if (_selectedQuickChipName != null &&
+          _nameController.text != _selectedQuickChipName) {
+        setState(() => _selectedQuickChipName = null);
+      }
+    });
   }
 
   @override
@@ -48,6 +71,7 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
 
   // Helper to update name from quick chips
   void _fillName(String name) {
+    setState(() => _selectedQuickChipName = name);
     _nameController.text = name;
     // Move cursor to end
     _nameController.selection = TextSelection.fromPosition(
@@ -126,18 +150,12 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
-              children: [
-                "Ibuprofen",
-                "Paracetamol",
-                "Antibiotic",
-                "Vitamin D",
-                "Iron",
-                "Fungi Cream"
-              ].map((name) => Padding(
+              children: _quickChipNames.map((name) => Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: ActionChip(
+                child: FilterChip(
                   label: Text(name),
-                  onPressed: () => _fillName(name),
+                  selected: name == _selectedQuickChipName,
+                  onSelected: (_) => _fillName(name),
                 ),
               )).toList(),
             ),
