@@ -131,7 +131,16 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
                 "Paracetamol",
                 "Antibiotic",
                 "Vitamin D",
-                "Iron"
+                "Iron",
+                "Antihistamine",
+                "Cough Syrup",
+                "Vitamin C",
+                "Zinc",
+                "Probiotics",
+                "Omega-3",
+                "Calcium",
+                "Cortisone",
+                "Eye Drops",
               ].map((name) => Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: ActionChip(
