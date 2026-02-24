@@ -86,7 +86,7 @@ class _AddFamilyDialogState extends ConsumerState<AddFamilyDialog> {
       // We pass the name and the color value (int)
       ref.read(familyProvider.notifier).addMember(
         name: name,
-        colorValue: _selectedColor.value,
+        colorValue: _selectedColor.toARGB32(),
       );
       Navigator.pop(context); // Close the dialog
     }

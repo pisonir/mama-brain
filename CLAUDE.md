@@ -32,6 +32,29 @@ dart run flutter_native_splash:create
 firebase deploy --only firestore:rules
 ```
 
+## Git Workflow
+
+**IMPORTANT:** When implementing user feature requests or fixing issues, ALWAYS create a new branch before modifying code.
+
+```bash
+# Create and switch to a new feature branch
+git checkout -b feature/description-of-feature
+
+# Create and switch to a new bugfix branch
+git checkout -b fix/description-of-bug
+```
+
+Branch naming conventions:
+- `feature/` prefix for new features (e.g., `feature/add-temperature-tracking`)
+- `fix/` prefix for bug fixes (e.g., `fix/medication-toggle-crash`)
+- Use lowercase with hyphens for readability
+
+After completing changes:
+1. Run `flutter analyze` and `flutter test` to verify code quality
+2. Commit changes with descriptive messages
+3. Push the branch and create a pull request for review
+4. Only merge to `main` after review and approval
+
 ## Architecture
 
 **Pattern:** Feature-based organization with Riverpod state management and Firebase Firestore.
