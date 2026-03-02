@@ -51,5 +51,10 @@ android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 lib/firebase_options.dart
 
+# Android signing
+android/key.properties
+*.jks
+*.keystore
+
 # Claude Code
 .claude/settings.local.json
