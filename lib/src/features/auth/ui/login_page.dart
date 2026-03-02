@@ -13,16 +13,8 @@ class LoginPage extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.child_care,
-                size: 96,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+              Image.asset('assets/branding.jpeg', height: 120),
               const SizedBox(height: 16),
-              Text(
-                'Mama Brain',
-                style: Theme.of(context).textTheme.headlineLarge,
-              ),
               const SizedBox(height: 48),
               FilledButton.icon(
                 onPressed: () => signInWithGoogle(),
