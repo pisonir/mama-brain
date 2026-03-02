@@ -14,7 +14,7 @@ class LoginPage extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Image.asset('assets/branding.jpeg', height: 120),
+              Image.asset('assets/branding.png', height: 120),
               const SizedBox(height: 16),
               const SizedBox(height: 48),
               FilledButton.icon(

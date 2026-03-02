@@ -89,8 +89,8 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/icon.jpeg
-    - assets/branding.jpeg
+    - assets/icon.png
+    - assets/branding.png
 
   # For details regarding adding assets from package dependencies, see
   # https://flutter.dev/to/asset-from-package
@@ -119,11 +119,11 @@ flutter:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/icon.jpeg"
+  image_path: "assets/icon.png"
   min_sdk_android: 21
 
 # In your terminal, run `dart run flutter_native_splash:create` to generate the icons.
 flutter_native_splash:
   color: "#A7C7E7"
-  image: "assets/icon.jpeg"
-  branding: "assets/branding.jpeg"
+  image: "assets/icon.png"
+  branding: "assets/branding.png"
