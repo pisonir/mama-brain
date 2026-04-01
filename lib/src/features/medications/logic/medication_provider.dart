@@ -85,7 +85,7 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
     await _col.doc(id).delete();
   }
 
-  Future<void> toggleTaken(String id, DateTime date) async {
+  Future<void> toggleTaken(String id, DateTime date, {DateTime? takenAt}) async {
     final med = state.firstWhere((med) => med.id == id);
     final targetDay = DateTime(date.year, date.month, date.day);
 
@@ -99,8 +99,25 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
     if (existingLogIndex >= 0) {
       newLogs.removeAt(existingLogIndex);
     } else {
-      newLogs.add(DateTime.now());
+      newLogs.add(takenAt ?? DateTime.now());
     }
+
+    final updatedMed = med.copyWith(takenLogs: newLogs);
+    await _col.doc(id).set(updatedMed.toMap());
+  }
+
+  Future<void> setTakenTime(String id, DateTime date, DateTime newTakenAt) async {
+    final med = state.firstWhere((med) => med.id == id);
+
+    final existingLogIndex = med.takenLogs.indexWhere((log) =>
+        log.year == date.year &&
+        log.month == date.month &&
+        log.day == date.day);
+
+    if (existingLogIndex < 0) return;
+
+    List<DateTime> newLogs = [...med.takenLogs];
+    newLogs[existingLogIndex] = newTakenAt;
 
     final updatedMed = med.copyWith(takenLogs: newLogs);
     await _col.doc(id).set(updatedMed.toMap());
