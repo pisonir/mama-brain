@@ -36,6 +36,7 @@ class DateStrip extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: weekDates.map((date) {
                 final isSelected = _isSameDay(date, selectedDate);
+                final isToday = _isSameDay(date, DateTime.now());
                 return GestureDetector(
                   onTap: () {
                     ref.read(selectedDateProvider.notifier).state = date;
@@ -45,6 +46,7 @@ class DateStrip extends ConsumerWidget {
                   child: _DateCard(
                     date: date,
                     isSelected: isSelected,
+                    isToday: isToday,
                   ),
                 );
               }).toList(),
@@ -66,27 +68,38 @@ class DateStrip extends ConsumerWidget {
 class _DateCard extends StatelessWidget {
   final DateTime date;
   final bool isSelected;
+  final bool isToday;
 
-  const _DateCard({required this.date, required this.isSelected});
+  const _DateCard({required this.date, required this.isSelected, required this.isToday});
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
     return Container(
       width: 50,
       height: 60,
       decoration: BoxDecoration(
-        color: isSelected ? Theme.of(context).primaryColor : Colors.transparent,
+        color: isSelected ? primaryColor : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        border: isSelected ? null : Border.all(color: Colors.grey.shade300),
+        border: isSelected
+            ? null
+            : isToday
+                ? Border.all(color: primaryColor, width: 2)
+                : Border.all(color: Colors.grey.shade300),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            DateFormat('E').format(date),
+            isToday ? 'Today' : DateFormat('E').format(date),
             style: TextStyle(
               fontSize: 10,
-              color: isSelected ? Colors.white : Colors.grey,
+              fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+              color: isSelected
+                  ? Colors.white
+                  : isToday
+                      ? primaryColor
+                      : Colors.grey,
             ),
           ),
           const SizedBox(height: 4),
@@ -95,7 +108,11 @@ class _DateCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: isSelected ? Colors.white : Colors.black,
+              color: isSelected
+                  ? Colors.white
+                  : isToday
+                      ? primaryColor
+                      : Colors.black,
             ),
           ),
         ],

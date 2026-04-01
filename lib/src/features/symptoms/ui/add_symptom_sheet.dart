@@ -57,8 +57,11 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
     final familyMembers = ref.watch(familyProvider);
 
     return Padding(
+      // This padding makes the sheet avoid the keyboard when it opens,
+      // and also accounts for the system navigation bar (Back/Home/Recents).
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
+        bottom: MediaQuery.of(context).viewInsets.bottom +
+            MediaQuery.of(context).padding.bottom,
         left: 16,
         right: 16,
         top: 16,
