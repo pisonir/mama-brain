@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/medication.dart';
+import '../../../core/models/symptom.dart';
 import '../../family/logic/family_provider.dart';
 import '../../medications/logic/medication_provider.dart';
 import '../../symptoms/logic/symptom_provider.dart';
@@ -33,7 +34,9 @@ final historyEventsProvider = Provider<Map<DateTime, List<HistoryEvent>>>((ref) 
   for (final s in symptoms) {
     addEvent(s.timestamp, HistoryEvent(
       id: s.id,
-      title: s.type.name.toUpperCase(),
+      title: s.type == SymptomType.other && s.note != null && s.note!.isNotEmpty
+          ? s.note!
+          : s.type.name[0].toUpperCase() + s.type.name.substring(1),
       date: s.timestamp,
       color: getFamilyColor(s.familyMemberId),
       type: EventType.symptom,
