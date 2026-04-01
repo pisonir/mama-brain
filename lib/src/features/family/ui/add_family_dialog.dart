@@ -16,16 +16,16 @@ class _AddFamilyDialogState extends ConsumerState<AddFamilyDialog> {
   late final TextEditingController _nameController;
 
   // 2. The Color: we default to the first color in our list
-  Color _selectedColor = const Color(0xFFFFB7B2);
+  Color _selectedColor = const Color(0xFF5B8DEF);
 
-  // 3. The Options: A list of colors the user can pick from 
+  // 3. The Options: A list of colors the user can pick from
   final List<Color> _colorOptions = [
-      const Color(0xFFFFB7B2),
-      const Color(0xFFFFDAC1),
-      const Color(0xFFE2F0CB),
-      const Color(0xFFB5EAD7),
-      const Color(0XFFC7CEEA),
-      const Color(0XFFFDCFE8),
+      const Color(0xFF5B8DEF), // Blue
+      const Color(0xFFE05C5C), // Coral
+      const Color(0xFF4CAF87), // Emerald
+      const Color(0xFFE0923A), // Amber
+      const Color(0xFF9067C6), // Purple
+      const Color(0xFF2AADBA), // Teal
     ];
 
   @override
@@ -45,7 +45,7 @@ class _AddFamilyDialogState extends ConsumerState<AddFamilyDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text("New Family Memeber"),
+      title: const Text("New Family Member"),
       content: Column(
         mainAxisSize: MainAxisSize.min, // Shrink to fit content
         children: [
