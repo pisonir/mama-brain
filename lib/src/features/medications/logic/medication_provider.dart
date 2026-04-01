@@ -51,6 +51,10 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
     int? durationInDays,
   }) async {
     final id = const Uuid().v4();
+    // Auto-check one-off medications immediately on creation
+    final takenLogs = type == MedicationType.oneOff
+        ? [DateTime(startDate.year, startDate.month, startDate.day)]
+        : <DateTime>[];
     final newMed = Medication(
       id: id,
       name: name,
@@ -58,6 +62,7 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
       type: type,
       startDate: startDate,
       durationInDays: durationInDays,
+      takenLogs: takenLogs,
     );
     await _col.doc(id).set(newMed.toMap());
   }
@@ -82,7 +87,43 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
   }
 
   Future<void> deleteMedication(String id) async {
-    await _col.doc(id).delete();
+    final med = state.firstWhere((m) => m.id == id);
+
+    // One-off medications are always fully deleted
+    if (med.type == MedicationType.oneOff) {
+      await _col.doc(id).delete();
+      return;
+    }
+
+    // For temporary/permanent: preserve past history, delete only future
+    final today = DateTime.now();
+    final normalizedToday = DateTime(today.year, today.month, today.day);
+    final normalizedStart = DateTime(
+      med.startDate.year,
+      med.startDate.month,
+      med.startDate.day,
+    );
+
+    // No past days to preserve — fully delete
+    if (!normalizedStart.isBefore(normalizedToday)) {
+      await _col.doc(id).delete();
+      return;
+    }
+
+    // Keep only taken logs from before today
+    final pastLogs = med.takenLogs.where((log) {
+      final normalizedLog = DateTime(log.year, log.month, log.day);
+      return normalizedLog.isBefore(normalizedToday);
+    }).toList();
+
+    // Truncate the medication to cover only past days (startDate to yesterday)
+    final daysToPreserve = normalizedToday.difference(normalizedStart).inDays;
+    final preserved = med.copyWith(
+      type: MedicationType.temporary,
+      durationInDays: daysToPreserve,
+      takenLogs: pastLogs,
+    );
+    await _col.doc(id).set(preserved.toMap());
   }
 
   Future<void> toggleTaken(String id, DateTime date) async {
