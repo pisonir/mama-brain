@@ -68,7 +68,7 @@ void main() {
         container.dispose();
       });
 
-      test('title is type name uppercased', () {
+      test('title is type name in sentence case', () {
         final symptoms = [
           Symptom(
             id: 's1',
@@ -82,7 +82,44 @@ void main() {
         final events = container.read(historyEventsProvider);
         final event = events[normalize(DateTime(2025, 6, 15))]!.first;
 
-        expect(event.title, 'FEVER');
+        expect(event.title, 'Fever');
+        container.dispose();
+      });
+
+      test('other symptom with note uses note as title', () {
+        final symptoms = [
+          Symptom(
+            id: 's1',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15),
+            type: SymptomType.other,
+            note: 'Stomach ache',
+          ),
+        ];
+
+        final container = makeContainer(symptoms: symptoms);
+        final events = container.read(historyEventsProvider);
+        final event = events[normalize(DateTime(2025, 6, 15))]!.first;
+
+        expect(event.title, 'Stomach ache');
+        container.dispose();
+      });
+
+      test('other symptom without note falls back to sentence-case type name', () {
+        final symptoms = [
+          Symptom(
+            id: 's1',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15),
+            type: SymptomType.other,
+          ),
+        ];
+
+        final container = makeContainer(symptoms: symptoms);
+        final events = container.read(historyEventsProvider);
+        final event = events[normalize(DateTime(2025, 6, 15))]!.first;
+
+        expect(event.title, 'Other');
         container.dispose();
       });
 
