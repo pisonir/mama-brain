@@ -366,8 +366,9 @@ void main() {
         await notifier.addMedication(
           name: 'Toggle Med',
           familyMemberId: 'fm-1',
-          type: MedicationType.oneOff,
+          type: MedicationType.temporary,
           startDate: today,
+          durationInDays: 7,
         );
         await Future.delayed(Duration.zero);
         final id = notifier.state.first.id;
@@ -394,8 +395,9 @@ void main() {
         await notifier.addMedication(
           name: 'Med',
           familyMemberId: 'fm-1',
-          type: MedicationType.oneOff,
+          type: MedicationType.temporary,
           startDate: today,
+          durationInDays: 7,
         );
         await Future.delayed(Duration.zero);
         final id = notifier.state.first.id;
@@ -418,8 +420,9 @@ void main() {
         await notifier.addMedication(
           name: 'Med',
           familyMemberId: 'fm-1',
-          type: MedicationType.oneOff,
+          type: MedicationType.temporary,
           startDate: today,
+          durationInDays: 7,
         );
         await Future.delayed(Duration.zero);
         final id = notifier.state.first.id;
