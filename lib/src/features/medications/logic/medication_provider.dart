@@ -110,14 +110,22 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
       return;
     }
 
-    // Keep only taken logs from before today
+    // Keep only taken logs from before today. Any log for today is intentionally
+    // excluded because the preserved document ends yesterday (the deletion point),
+    // so including a today-log would reference a day outside the medication's new range.
     final pastLogs = med.takenLogs.where((log) {
       final normalizedLog = DateTime(log.year, log.month, log.day);
       return normalizedLog.isBefore(normalizedToday);
     }).toList();
 
-    // Truncate the medication to cover only past days (startDate to yesterday)
-    final daysToPreserve = normalizedToday.difference(normalizedStart).inDays;
+    // Truncate the medication to cover only past days (startDate to yesterday).
+    // For temporary medications cap to the original duration so we never extend
+    // a medication that had already ended before the deletion date.
+    final diff = normalizedToday.difference(normalizedStart).inDays;
+    final daysToPreserve =
+        (med.type == MedicationType.temporary && med.durationInDays != null)
+            ? (diff < med.durationInDays! ? diff : med.durationInDays!)
+            : diff;
     final preserved = med.copyWith(
       type: MedicationType.temporary,
       durationInDays: daysToPreserve,

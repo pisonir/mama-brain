@@ -246,6 +246,34 @@ void main() {
         expect(data['durationInDays'], expectedDays);
       });
 
+      test('does not extend an already-ended temporary medication on deletion', () async {
+        final notifier = createNotifier();
+        // Medication ran Jan 1–3 (3 days), deleted well after it ended
+        final startDate = DateTime(2025, 1, 1);
+        const originalDuration = 3;
+        await notifier.addMedication(
+          name: 'Short Course',
+          familyMemberId: 'fm-1',
+          type: MedicationType.temporary,
+          startDate: startDate,
+          durationInDays: originalDuration,
+        );
+        await Future.delayed(Duration.zero);
+        final id = notifier.state.first.id;
+
+        await notifier.deleteMedication(id);
+        await Future.delayed(Duration.zero);
+
+        // Document must still exist
+        final snap = await medsCol().get();
+        expect(snap.docs.length, 1);
+
+        // Duration must NOT exceed the original duration
+        final data = snap.docs.first.data() as Map<String, dynamic>;
+        expect(data['type'], MedicationType.temporary.name);
+        expect(data['durationInDays'], originalDuration);
+      });
+
       test('fully deletes a permanent medication that starts today or in the future', () async {
         final notifier = createNotifier();
         final today = DateTime.now();
