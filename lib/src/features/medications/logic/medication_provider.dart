@@ -107,6 +107,12 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
   }
 
   Future<void> setTakenTime(String id, DateTime date, DateTime newTakenAt) async {
+    assert(
+      newTakenAt.year == date.year &&
+          newTakenAt.month == date.month &&
+          newTakenAt.day == date.day,
+      'newTakenAt must be on the same calendar day as date',
+    );
     final med = state.firstWhere((med) => med.id == id);
 
     final existingLogIndex = med.takenLogs.indexWhere((log) =>

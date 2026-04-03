@@ -205,6 +205,76 @@ void main() {
         await Future.delayed(Duration.zero);
         expect(notifier.state.first.takenLogs.length, 0);
       });
+
+      test('stores the exact takenAt timestamp when provided', () async {
+        final notifier = createNotifier();
+        await notifier.addMedication(
+          name: 'Toggle Med',
+          familyMemberId: 'fm-1',
+          type: MedicationType.oneOff,
+          startDate: today,
+        );
+        await Future.delayed(Duration.zero);
+        final id = notifier.state.first.id;
+
+        final specificTime = DateTime(today.year, today.month, today.day, 14, 30);
+        await notifier.toggleTaken(id, today, takenAt: specificTime);
+        await Future.delayed(Duration.zero);
+
+        expect(notifier.state.first.takenLogs.length, 1);
+        expect(notifier.state.first.takenLogs.first, specificTime);
+      });
+    });
+
+    group('setTakenTime', () {
+      late DateTime today;
+
+      setUp(() {
+        final now = DateTime.now();
+        today = DateTime(now.year, now.month, now.day);
+      });
+
+      test('updates the log entry to the new time', () async {
+        final notifier = createNotifier();
+        await notifier.addMedication(
+          name: 'Med',
+          familyMemberId: 'fm-1',
+          type: MedicationType.oneOff,
+          startDate: today,
+        );
+        await Future.delayed(Duration.zero);
+        final id = notifier.state.first.id;
+
+        final originalTime = DateTime(today.year, today.month, today.day, 9, 0);
+        await notifier.toggleTaken(id, today, takenAt: originalTime);
+        await Future.delayed(Duration.zero);
+        expect(notifier.state.first.takenLogs.first, originalTime);
+
+        final newTime = DateTime(today.year, today.month, today.day, 15, 45);
+        await notifier.setTakenTime(id, today, newTime);
+        await Future.delayed(Duration.zero);
+
+        expect(notifier.state.first.takenLogs.length, 1);
+        expect(notifier.state.first.takenLogs.first, newTime);
+      });
+
+      test('is a no-op when no log exists for the given date', () async {
+        final notifier = createNotifier();
+        await notifier.addMedication(
+          name: 'Med',
+          familyMemberId: 'fm-1',
+          type: MedicationType.oneOff,
+          startDate: today,
+        );
+        await Future.delayed(Duration.zero);
+        final id = notifier.state.first.id;
+
+        final newTime = DateTime(today.year, today.month, today.day, 10, 0);
+        await notifier.setTakenTime(id, today, newTime);
+        await Future.delayed(Duration.zero);
+
+        expect(notifier.state.first.takenLogs, isEmpty);
+      });
     });
   });
 }

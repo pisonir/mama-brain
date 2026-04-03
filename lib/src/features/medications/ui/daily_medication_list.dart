@@ -34,12 +34,6 @@ void _confirmDelete(BuildContext context, WidgetRef ref, Medication med) {
   );
 }
 
-bool _isTaken(Medication med, DateTime date) {
-  return med.takenLogs.any(
-    (log) =>
-        log.year == date.year && log.month == date.month && log.day == date.day,
-  );
-}
 
 /// Dialog shown when marking a medication as taken, allowing the user to set
 /// an exact time with a "Now" shortcut and a manual time picker.
@@ -164,6 +158,7 @@ class DailyMedicationList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final meds = ref.watch(dailyMedicationsProvider);
     final familyMembers = ref.watch(familyProvider);
+    final selectedDate = ref.watch(selectedDateProvider);
 
     if (meds.isEmpty) {
       return const Center(child: Text('No medications for the selected date.'));
@@ -174,18 +169,13 @@ class DailyMedicationList extends ConsumerWidget {
       itemCount: meds.length,
       itemBuilder: (context, index) {
         final med = meds[index];
-        final selectedDate = ref.watch(selectedDateProvider);
-        final isTaken = _isTaken(med, selectedDate);
-
-        DateTime? takenLog;
-        if (isTaken) {
-          takenLog = med.takenLogs.firstWhere(
-            (log) =>
-                log.year == selectedDate.year &&
-                log.month == selectedDate.month &&
-                log.day == selectedDate.day,
-          );
-        }
+        final takenLog = med.takenLogs.where(
+          (log) =>
+              log.year == selectedDate.year &&
+              log.month == selectedDate.month &&
+              log.day == selectedDate.day,
+        ).firstOrNull;
+        final isTaken = takenLog != null;
 
         String subtitleText;
         if (isTaken && takenLog != null) {
