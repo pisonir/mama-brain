@@ -32,10 +32,17 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
     "Ibuprofen",
     "Paracetamol",
     "Antibiotic",
+    "Navisin",
+    "Antifungal Cream",
     "Vitamin D",
     "Iron",
-    "Fungi Cream",
   ];
+
+  // Quick chips that should default to a specific type and duration
+  static const _quickChipDefaults = <String, ({MedicationType type, int? days})>{
+    "Navisin": (type: MedicationType.temporary, days: 7),
+    "Antifungal Cream": (type: MedicationType.temporary, days: 7),
+  };
 
   @override
   void initState() {
@@ -69,9 +76,18 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
     super.dispose();
   }
 
-  // Helper to update name from quick chips
+  // Helper to update name (and optionally type/duration) from quick chips
   void _fillName(String name) {
-    setState(() => _selectedQuickChipName = name);
+    final defaults = _quickChipDefaults[name];
+    setState(() {
+      _selectedQuickChipName = name;
+      if (defaults != null) {
+        _selectedType = defaults.type;
+        if (defaults.days != null) {
+          _durationDays = defaults.days!.toDouble();
+        }
+      }
+    });
     _nameController.text = name;
     // Move cursor to end
     _nameController.selection = TextSelection.fromPosition(
