@@ -22,6 +22,7 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
   double _tempValue = 38.5;
   String _coughType = 'Dry';
   final TextEditingController _noteController = TextEditingController();
+  late TimeOfDay _selectedTime;
 
   @override
   void initState() {
@@ -32,6 +33,7 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
       _selectedMemberId = symptom.familyMemberId;
       _selectedType = symptom.type;
       _noteController.text = symptom.note ?? '';
+      _selectedTime = TimeOfDay.fromDateTime(symptom.timestamp);
 
       if (symptom.type == SymptomType.fever &&
           symptom.data.containsKey('temp')) {
@@ -41,6 +43,7 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
         _coughType = symptom.data['style'];
       }
     } else {
+      _selectedTime = TimeOfDay.now();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final familyMembers = ref.read(familyProvider);
         if (familyMembers.isNotEmpty && _selectedMemberId == null) {
@@ -147,6 +150,37 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
 
           const Divider(height: 30),
 
+          // TIME PICKER ROW
+          Row(
+            children: [
+              const Icon(Icons.access_time, size: 18, color: Colors.grey),
+              const SizedBox(width: 8),
+              Text(
+                _selectedTime.format(context),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              const Spacer(),
+              OutlinedButton(
+                onPressed: () => setState(() => _selectedTime = TimeOfDay.now()),
+                child: const Text('Now'),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.edit, size: 16),
+                label: const Text('Pick'),
+                onPressed: () async {
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: _selectedTime,
+                  );
+                  if (picked != null) setState(() => _selectedTime = picked);
+                },
+              ),
+            ],
+          ),
+
+          const Divider(height: 30),
+
           // DETAILS
           _buildDynamicDetails(),
 
@@ -206,13 +240,18 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
 
     // Edit mode
     if (widget.symptomToEdit != null) {
+      final st = widget.symptomToEdit!.timestamp;
+      final updatedTimestamp = DateTime(
+        st.year, st.month, st.day,
+        _selectedTime.hour, _selectedTime.minute,
+      );
       ref
           .read(symptomProvider.notifier)
           .editSymptom(
             id: widget.symptomToEdit!.id,
             familyMemberId: _selectedMemberId!,
             type: _selectedType,
-            timestamp: widget.symptomToEdit!.timestamp,
+            timestamp: updatedTimestamp,
             data: data,
             note: _noteController.text.isEmpty ? null : _noteController.text,
           );
@@ -220,13 +259,12 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
     // Add mode
     else {
       final selectedDate = ref.read(selectedDateProvider);
-      final now = DateTime.now();
       final timestamp = DateTime(
         selectedDate.year,
         selectedDate.month,
         selectedDate.day,
-        now.hour,
-        now.minute,
+        _selectedTime.hour,
+        _selectedTime.minute,
       );
       ref
           .read(symptomProvider.notifier)

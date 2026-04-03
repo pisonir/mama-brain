@@ -34,11 +34,121 @@ void _confirmDelete(BuildContext context, WidgetRef ref, Medication med) {
   );
 }
 
-bool _isTaken(Medication med, DateTime date) {
-  return med.takenLogs.any(
-    (log) =>
-        log.year == date.year && log.month == date.month && log.day == date.day,
+
+/// Dialog shown when marking a medication as taken, allowing the user to set
+/// an exact time with a "Now" shortcut and a manual time picker.
+class _TakenTimeDialog extends StatefulWidget {
+  final DateTime date;
+  final TimeOfDay? initialTime;
+
+  const _TakenTimeDialog({required this.date, this.initialTime});
+
+  @override
+  State<_TakenTimeDialog> createState() => _TakenTimeDialogState();
+}
+
+class _TakenTimeDialogState extends State<_TakenTimeDialog> {
+  late TimeOfDay _time;
+
+  @override
+  void initState() {
+    super.initState();
+    _time = widget.initialTime ?? TimeOfDay.now();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('When was it taken?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Text(
+                _time.format(context),
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              OutlinedButton(
+                onPressed: () => setState(() => _time = TimeOfDay.now()),
+                child: const Text('Now'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          TextButton.icon(
+            icon: const Icon(Icons.access_time),
+            label: const Text('Pick a different time'),
+            onPressed: () async {
+              final picked = await showTimePicker(
+                context: context,
+                initialTime: _time,
+              );
+              if (picked != null) setState(() => _time = picked);
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final result = DateTime(
+              widget.date.year,
+              widget.date.month,
+              widget.date.day,
+              _time.hour,
+              _time.minute,
+            );
+            Navigator.pop(context, result);
+          },
+          child: const Text('Confirm'),
+        ),
+      ],
+    );
+  }
+}
+
+Future<void> _showToggleTakenDialog(
+  BuildContext context,
+  WidgetRef ref,
+  Medication med,
+  DateTime selectedDate,
+) async {
+  final takenAt = await showDialog<DateTime>(
+    context: context,
+    builder: (ctx) => _TakenTimeDialog(date: selectedDate),
   );
+  if (takenAt != null && context.mounted) {
+    ref
+        .read(medicationProvider.notifier)
+        .toggleTaken(med.id, selectedDate, takenAt: takenAt);
+  }
+}
+
+Future<void> _showEditTakenTimeDialog(
+  BuildContext context,
+  WidgetRef ref,
+  Medication med,
+  DateTime selectedDate,
+  DateTime currentTakenAt,
+) async {
+  final newTakenAt = await showDialog<DateTime>(
+    context: context,
+    builder: (ctx) => _TakenTimeDialog(
+      date: selectedDate,
+      initialTime: TimeOfDay.fromDateTime(currentTakenAt),
+    ),
+  );
+  if (newTakenAt != null && context.mounted) {
+    ref
+        .read(medicationProvider.notifier)
+        .setTakenTime(med.id, selectedDate, newTakenAt);
+  }
 }
 
 class DailyMedicationList extends ConsumerWidget {
@@ -48,6 +158,7 @@ class DailyMedicationList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final meds = ref.watch(dailyMedicationsProvider);
     final familyMembers = ref.watch(familyProvider);
+    final selectedDate = ref.watch(selectedDateProvider);
 
     if (meds.isEmpty) {
       return const Center(child: Text('No medications for the selected date.'));
@@ -58,20 +169,25 @@ class DailyMedicationList extends ConsumerWidget {
       itemCount: meds.length,
       itemBuilder: (context, index) {
         final med = meds[index];
-        final selectedDate = ref.watch(selectedDateProvider);
-        final isTaken = _isTaken(med, selectedDate);
-        String subtitleText = med.type.name;
-        if (med.type == MedicationType.oneOff) {
-          if (isTaken) {
-            final takenLog = med.takenLogs.firstWhere(
-              (log) =>
-                  log.year == selectedDate.year &&
-                  log.month == selectedDate.month &&
-                  log.day == selectedDate.day,
-            );
-            subtitleText = 'Taken at ${DateFormat.Hm().format(takenLog)}';
-          } else {
-            subtitleText = 'One-off';
+        final takenLog = med.takenLogs.where(
+          (log) =>
+              log.year == selectedDate.year &&
+              log.month == selectedDate.month &&
+              log.day == selectedDate.day,
+        ).firstOrNull;
+        final isTaken = takenLog != null;
+
+        String subtitleText;
+        if (isTaken && takenLog != null) {
+          subtitleText = 'Taken at ${DateFormat.Hm().format(takenLog)}';
+        } else {
+          switch (med.type) {
+            case MedicationType.oneOff:
+              subtitleText = 'One-off';
+            case MedicationType.temporary:
+              subtitleText = 'Temporary';
+            case MedicationType.permanent:
+              subtitleText = 'Permanent';
           }
         }
 
@@ -87,9 +203,13 @@ class DailyMedicationList extends ConsumerWidget {
             leading: Checkbox(
               value: isTaken,
               onChanged: (val) {
-                ref
-                    .read(medicationProvider.notifier)
-                    .toggleTaken(med.id, ref.watch(selectedDateProvider));
+                if (val == true) {
+                  _showToggleTakenDialog(context, ref, med, selectedDate);
+                } else {
+                  ref
+                      .read(medicationProvider.notifier)
+                      .toggleTaken(med.id, selectedDate);
+                }
               },
             ),
             title: Text(
@@ -116,11 +236,29 @@ class DailyMedicationList extends ConsumerWidget {
                     ),
                   ],
                 ),
-                Text(subtitleText),
+                if (isTaken && takenLog != null)
+                  GestureDetector(
+                    onTap: () => _showEditTakenTimeDialog(
+                      context, ref, med, selectedDate, takenLog!,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          subtitleText,
+                          style: const TextStyle(color: Colors.green),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.edit, size: 12, color: Colors.green),
+                      ],
+                    ),
+                  )
+                else
+                  Text(subtitleText),
               ],
             ),
             trailing: Row(
-              mainAxisSize: MainAxisSize.min, // <-- CRITICAL
+              mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
                   icon: const Icon(Icons.edit, color: Colors.grey),
