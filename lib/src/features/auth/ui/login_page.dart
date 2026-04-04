@@ -19,8 +19,16 @@ class LoginPage extends ConsumerWidget {
               const SizedBox(height: 48),
               FilledButton.icon(
                 onPressed: () async {
-                  await signInWithGoogle();
-                  ref.invalidate(appUserProvider);
+                  try {
+                    await signInWithGoogle();
+                    ref.invalidate(appUserProvider);
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Sign-in failed: $e')),
+                      );
+                    }
+                  }
                 },
                 icon: const Icon(Icons.login),
                 label: const Text('Sign in with Google'),
