@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../logic/auth_provider.dart';
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends ConsumerWidget {
   const LoginPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       body: Center(
         child: Padding(
@@ -25,7 +26,10 @@ class LoginPage extends StatelessWidget {
               ),
               const SizedBox(height: 48),
               FilledButton.icon(
-                onPressed: () => signInWithGoogle(),
+                onPressed: () async {
+                  await signInWithGoogle();
+                  ref.invalidate(appUserProvider);
+                },
                 icon: const Icon(Icons.login),
                 label: const Text('Sign in with Google'),
               ),

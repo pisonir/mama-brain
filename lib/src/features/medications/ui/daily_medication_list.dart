@@ -178,7 +178,7 @@ class DailyMedicationList extends ConsumerWidget {
         final isTaken = takenLog != null;
 
         String subtitleText;
-        if (isTaken && takenLog != null) {
+        if (isTaken) {
           subtitleText = 'Taken at ${DateFormat.Hm().format(takenLog)}';
         } else {
           switch (med.type) {
@@ -236,10 +236,10 @@ class DailyMedicationList extends ConsumerWidget {
                     ),
                   ],
                 ),
-                if (isTaken && takenLog != null)
+                if (isTaken)
                   GestureDetector(
                     onTap: () => _showEditTakenTimeDialog(
-                      context, ref, med, selectedDate, takenLog!,
+                      context, ref, med, selectedDate, takenLog,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
