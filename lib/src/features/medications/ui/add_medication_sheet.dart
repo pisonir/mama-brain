@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../core/models/medication.dart';
 import '../../family/logic/family_provider.dart';
+import '../logic/date_provider.dart';
 import '../logic/medication_provider.dart';
 
 class AddMedicationSheet extends ConsumerStatefulWidget {
@@ -28,6 +30,10 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
   // We make it nullable (?) because initially, no one might be selected
   String? _selectedMemberId;
 
+  // Date and time for when the medication was taken
+  late DateTime _selectedDate;
+  late TimeOfDay _selectedTime;
+
   static const _quickChipNames = [
     "Ibuprofen",
     "Paracetamol",
@@ -53,6 +59,8 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
       _nameController.text = med.name;
       _selectedType = med.type;
       _selectedMemberId = med.familyMemberId;
+      _selectedDate = med.startDate;
+      _selectedTime = TimeOfDay.now();
       if (med.durationInDays != null) {
         _durationDays = med.durationInDays!.toDouble();
       }
@@ -60,6 +68,15 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
       if (_quickChipNames.contains(med.name)) {
         _selectedQuickChipName = med.name;
       }
+    } else {
+      _selectedTime = TimeOfDay.now();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final selectedDate = ref.read(selectedDateProvider);
+        if (mounted) {
+          setState(() => _selectedDate = selectedDate);
+        }
+      });
+      _selectedDate = DateTime.now();
     }
     // Clear chip highlight when user edits the text field manually
     _nameController.addListener(() {
@@ -223,6 +240,73 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
             ),
           ],
 
+          const Divider(height: 30),
+
+          // DATE PICKER ROW
+          Row(
+            children: [
+              const Icon(Icons.calendar_today, size: 18, color: Colors.grey),
+              const SizedBox(width: 8),
+              Text(
+                DateFormat.yMMMd().format(_selectedDate),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              const Spacer(),
+              OutlinedButton(
+                onPressed: () => setState(() {
+                  final now = DateTime.now();
+                  _selectedDate = DateTime(now.year, now.month, now.day);
+                }),
+                child: const Text('Today'),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.edit, size: 16),
+                label: const Text('Pick'),
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _selectedDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                  );
+                  if (picked != null) setState(() => _selectedDate = picked);
+                },
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // TIME PICKER ROW
+          Row(
+            children: [
+              const Icon(Icons.access_time, size: 18, color: Colors.grey),
+              const SizedBox(width: 8),
+              Text(
+                _selectedTime.format(context),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              const Spacer(),
+              OutlinedButton(
+                onPressed: () => setState(() => _selectedTime = TimeOfDay.now()),
+                child: const Text('Now'),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.edit, size: 16),
+                label: const Text('Pick'),
+                onPressed: () async {
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: _selectedTime,
+                  );
+                  if (picked != null) setState(() => _selectedTime = picked);
+                },
+              ),
+            ],
+          ),
+
           const SizedBox(height: 24),
 
           // Save Button
@@ -231,6 +315,10 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
             child: FilledButton(
               onPressed: () {
                 if (_nameController.text.isNotEmpty && _selectedMemberId != null) {
+                final takenAt = DateTime(
+                  _selectedDate.year, _selectedDate.month, _selectedDate.day,
+                  _selectedTime.hour, _selectedTime.minute,
+                );
                 // EDIT MODE
                 if (widget.medicationToEdit != null) {
                   ref.read(medicationProvider.notifier).editMedication(
@@ -239,17 +327,18 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
                     familyMemberId: _selectedMemberId!,
                     type: _selectedType,
                     durationInDays: _selectedType == MedicationType.temporary ? _durationDays.toInt() : null,
-                    originalStartDate: widget.medicationToEdit!.startDate,
+                    originalStartDate: _selectedDate,
                   );
-                } 
+                }
                 // ADD MODE
                 else {
                   ref.read(medicationProvider.notifier).addMedication(
                     name: _nameController.text.trim(),
                     familyMemberId: _selectedMemberId!,
                     type: _selectedType,
-                    startDate: DateTime.now(),
+                    startDate: _selectedDate,
                     durationInDays: _selectedType == MedicationType.temporary ? _durationDays.toInt() : null,
+                    takenAt: takenAt,
                   );
                 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:mama_brain/src/features/medications/logic/date_provider.dart';
 import '../../../core/models/symptom.dart';
 import '../../family/logic/family_provider.dart';
@@ -22,6 +23,7 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
   double _tempValue = 38.5;
   String _coughType = 'Dry';
   final TextEditingController _noteController = TextEditingController();
+  late DateTime _selectedDate;
   late TimeOfDay _selectedTime;
 
   @override
@@ -33,6 +35,7 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
       _selectedMemberId = symptom.familyMemberId;
       _selectedType = symptom.type;
       _noteController.text = symptom.note ?? '';
+      _selectedDate = DateTime(symptom.timestamp.year, symptom.timestamp.month, symptom.timestamp.day);
       _selectedTime = TimeOfDay.fromDateTime(symptom.timestamp);
 
       if (symptom.type == SymptomType.fever &&
@@ -44,11 +47,16 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
       }
     } else {
       _selectedTime = TimeOfDay.now();
+      _selectedDate = DateTime.now();
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        final selectedDate = ref.read(selectedDateProvider);
         final familyMembers = ref.read(familyProvider);
-        if (familyMembers.isNotEmpty && _selectedMemberId == null) {
+        if (mounted) {
           setState(() {
-            _selectedMemberId = familyMembers.first.id;
+            _selectedDate = selectedDate;
+            if (familyMembers.isNotEmpty && _selectedMemberId == null) {
+              _selectedMemberId = familyMembers.first.id;
+            }
           });
         }
       });
@@ -150,6 +158,42 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
 
           const Divider(height: 30),
 
+          // DATE PICKER ROW
+          Row(
+            children: [
+              const Icon(Icons.calendar_today, size: 18, color: Colors.grey),
+              const SizedBox(width: 8),
+              Text(
+                DateFormat.yMMMd().format(_selectedDate),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              const Spacer(),
+              OutlinedButton(
+                onPressed: () => setState(() {
+                  final now = DateTime.now();
+                  _selectedDate = DateTime(now.year, now.month, now.day);
+                }),
+                child: const Text('Today'),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.edit, size: 16),
+                label: const Text('Pick'),
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _selectedDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                  );
+                  if (picked != null) setState(() => _selectedDate = picked);
+                },
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
           // TIME PICKER ROW
           Row(
             children: [
@@ -238,34 +282,26 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
       data['style'] = _coughType;
     }
 
+    final timestamp = DateTime(
+      _selectedDate.year, _selectedDate.month, _selectedDate.day,
+      _selectedTime.hour, _selectedTime.minute,
+    );
+
     // Edit mode
     if (widget.symptomToEdit != null) {
-      final st = widget.symptomToEdit!.timestamp;
-      final updatedTimestamp = DateTime(
-        st.year, st.month, st.day,
-        _selectedTime.hour, _selectedTime.minute,
-      );
       ref
           .read(symptomProvider.notifier)
           .editSymptom(
             id: widget.symptomToEdit!.id,
             familyMemberId: _selectedMemberId!,
             type: _selectedType,
-            timestamp: updatedTimestamp,
+            timestamp: timestamp,
             data: data,
             note: _noteController.text.isEmpty ? null : _noteController.text,
           );
     }
     // Add mode
     else {
-      final selectedDate = ref.read(selectedDateProvider);
-      final timestamp = DateTime(
-        selectedDate.year,
-        selectedDate.month,
-        selectedDate.day,
-        _selectedTime.hour,
-        _selectedTime.minute,
-      );
       ref
           .read(symptomProvider.notifier)
           .addSymptom(

@@ -49,11 +49,12 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
     required MedicationType type,
     required DateTime startDate,
     int? durationInDays,
+    DateTime? takenAt,
   }) async {
     final id = const Uuid().v4();
     // Auto-check one-off medications immediately on creation
     final takenLogs = type == MedicationType.oneOff
-        ? [DateTime(startDate.year, startDate.month, startDate.day)]
+        ? [takenAt ?? DateTime(startDate.year, startDate.month, startDate.day)]
         : <DateTime>[];
     final newMed = Medication(
       id: id,
