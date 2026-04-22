@@ -10,17 +10,24 @@ final authStateProvider = StreamProvider<User?>((ref) {
   return FirebaseAuth.instance.authStateChanges();
 });
 
-/// Reads the /users/{uid} doc to get the app-level user (with groupId).
-final appUserProvider = FutureProvider<AppUser?>((ref) async {
+/// Watches the /users/{uid} doc in real-time to get the app-level user (with groupId).
+/// Using a StreamProvider (instead of FutureProvider) ensures:
+///   - automatic updates when auth state or user doc changes
+///   - Firestore offline cache is used on app restart (no network needed)
+///   - no manual ref.invalidate needed after sign-in
+final appUserProvider = StreamProvider<AppUser?>((ref) {
   final authState = ref.watch(authStateProvider);
   final user = authState.valueOrNull;
-  if (user == null) return null;
+  if (user == null) return Stream.value(null);
 
-  final doc =
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-  if (!doc.exists) return null;
-
-  return AppUser.fromMap(user.uid, doc.data()!);
+  return FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .snapshots()
+      .map((doc) {
+    if (!doc.exists) return null;
+    return AppUser.fromMap(user.uid, doc.data()!);
+  });
 });
 
 Future<void> signInWithGoogle() async {
