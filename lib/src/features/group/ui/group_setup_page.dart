@@ -31,8 +31,6 @@ class _GroupSetupPageState extends ConsumerState<GroupSetupPage> {
     setState(() => _loading = true);
     try {
       await createFamilyGroup(uid);
-      // Re-read user doc to get the new groupId
-      ref.invalidate(appUserProvider);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -54,7 +52,7 @@ class _GroupSetupPageState extends ConsumerState<GroupSetupPage> {
     if (!mounted) return;
 
     if (success) {
-      ref.invalidate(appUserProvider);
+      // appUserProvider (StreamProvider) auto-updates when the user doc changes
     } else {
       setState(() {
         _loading = false;

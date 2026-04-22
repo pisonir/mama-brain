@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../logic/auth_provider.dart';
 
-class LoginPage extends ConsumerWidget {
+class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
         child: Padding(
@@ -21,7 +20,6 @@ class LoginPage extends ConsumerWidget {
                 onPressed: () async {
                   try {
                     await signInWithGoogle();
-                    ref.invalidate(appUserProvider);
                   } catch (e) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
