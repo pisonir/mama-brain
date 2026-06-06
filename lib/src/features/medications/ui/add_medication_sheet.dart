@@ -40,8 +40,6 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
     "Antibiotic",
     "Navisin",
     "Antifungal Cream",
-    "Vitamin D",
-    "Iron",
   ];
 
   // Quick chips that should default to a specific type and duration
