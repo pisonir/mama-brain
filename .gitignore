@@ -58,3 +58,6 @@ android/key.properties
 
 # Claude Code
 .claude/settings.local.json
+
+# Private instructions
+private_instructions.md
