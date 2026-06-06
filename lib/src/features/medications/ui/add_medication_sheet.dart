@@ -46,6 +46,7 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
 
   // Quick chips that should default to a specific type and duration
   static const _quickChipDefaults = <String, ({MedicationType type, int? days})>{
+    "Antibiotic": (type: MedicationType.temporary, days: 7),
     "Navisin": (type: MedicationType.temporary, days: 7),
     "Antifungal Cream": (type: MedicationType.temporary, days: 7),
   };
