@@ -50,6 +50,7 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
     required DateTime startDate,
     int? durationInDays,
     DateTime? takenAt,
+    String? warning,
   }) async {
     final id = const Uuid().v4();
     // Auto-check one-off medications immediately on creation
@@ -64,6 +65,7 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
       startDate: startDate,
       durationInDays: durationInDays,
       takenLogs: takenLogs,
+      warning: warning,
     );
     await _col.doc(id).set(newMed.toMap());
   }
@@ -75,6 +77,7 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
     required MedicationType type,
     int? durationInDays,
     required DateTime originalStartDate,
+    String? warning,
   }) async {
     final updatedMed = Medication(
       id: id,
@@ -83,6 +86,7 @@ class MedicationNotifier extends StateNotifier<List<Medication>> {
       type: type,
       startDate: originalStartDate,
       durationInDays: durationInDays,
+      warning: warning,
     );
     await _col.doc(id).set(updatedMed.toMap());
   }
