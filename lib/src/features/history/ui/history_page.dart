@@ -152,21 +152,21 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
 
   // The tiny bar inside the calendar cell
   Widget _buildEventBar(HistoryEvent event) {
-    final isSymptom = event.type == EventType.symptom;
+    final isMedication = event.type == EventType.medication;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 0.5, horizontal:1),
       padding: const EdgeInsets.symmetric(horizontal: 2),
       height: 14,
       decoration: BoxDecoration(
-        color: isSymptom ? event.color : Colors.white,
+        color: isMedication ? event.color : Colors.white,
         borderRadius: BorderRadius.circular(2),
-        border: isSymptom ? null : Border.all(color: event.color, width: 1),
+        border: isMedication ? null : Border.all(color: event.color, width: 1),
       ),
       child: Text(
         event.title,
         style: TextStyle(
-          color: isSymptom ? Colors.white : event.color,
+          color: isMedication ? Colors.white : event.color,
           fontSize: 8,
           fontWeight: FontWeight.bold,
         ),
