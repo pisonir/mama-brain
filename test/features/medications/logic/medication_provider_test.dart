@@ -138,6 +138,35 @@ void main() {
         expect(snap.docs.length, 1);
         expect((snap.docs.first.data() as Map)['name'], 'Persisted Med');
       });
+
+      test('stores and round-trips a warning statement', () async {
+        final notifier = createNotifier();
+        await notifier.addMedication(
+          name: 'Paracetamol',
+          familyMemberId: 'fm-1',
+          type: MedicationType.oneOff,
+          startDate: DateTime(2025, 6, 15),
+          warning: 'Take every 6 hours, not less',
+        );
+        await Future.delayed(Duration.zero);
+
+        expect(notifier.state.first.warning, 'Take every 6 hours, not less');
+        final doc = await medsCol().doc(notifier.state.first.id).get();
+        expect((doc.data() as Map)['warning'], 'Take every 6 hours, not less');
+      });
+
+      test('defaults warning to null when not provided', () async {
+        final notifier = createNotifier();
+        await notifier.addMedication(
+          name: 'Vitamin D',
+          familyMemberId: 'fm-1',
+          type: MedicationType.permanent,
+          startDate: DateTime(2025, 1, 1),
+        );
+        await Future.delayed(Duration.zero);
+
+        expect(notifier.state.first.warning, isNull);
+      });
     });
 
     group('editMedication', () {
@@ -164,6 +193,33 @@ void main() {
         expect(notifier.state.first.name, 'New Name');
         final doc = await medsCol().doc(id).get();
         expect((doc.data() as Map)['name'], 'New Name');
+      });
+
+      test('updates the warning statement and persists', () async {
+        final notifier = createNotifier();
+        await notifier.addMedication(
+          name: 'Ibuprofen',
+          familyMemberId: 'fm-1',
+          type: MedicationType.oneOff,
+          startDate: DateTime(2025, 6, 15),
+          warning: 'Take every 8 hours, not less',
+        );
+        await Future.delayed(Duration.zero);
+        final id = notifier.state.first.id;
+
+        await notifier.editMedication(
+          id: id,
+          name: 'Ibuprofen',
+          familyMemberId: 'fm-1',
+          type: MedicationType.oneOff,
+          originalStartDate: DateTime(2025, 6, 15),
+          warning: 'Take every 6 hours, not less',
+        );
+        await Future.delayed(Duration.zero);
+
+        expect(notifier.state.first.warning, 'Take every 6 hours, not less');
+        final doc = await medsCol().doc(id).get();
+        expect((doc.data() as Map)['warning'], 'Take every 6 hours, not less');
       });
     });
 

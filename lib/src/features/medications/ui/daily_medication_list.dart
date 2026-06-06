@@ -255,6 +255,23 @@ class DailyMedicationList extends ConsumerWidget {
                   )
                 else
                   Text(subtitleText),
+                if (med.warning != null && med.warning!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.orange),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            med.warning!,
+                            style: const TextStyle(fontSize: 12, color: Colors.orange),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
             trailing: Row(

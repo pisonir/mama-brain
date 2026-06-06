@@ -19,6 +19,10 @@ class Medication {
   // A history of when this specific medication was taken. We store DateTimes here
   final List<DateTime> takenLogs;
 
+  // Optional caution statement shown on the form and the medication list,
+  // e.g. "take every 6 hours, not less"
+  final String? warning;
+
   Medication({
     required this.id,
     required this.name,
@@ -27,6 +31,7 @@ class Medication {
     required this.startDate,
     this.durationInDays,
     this.takenLogs = const [],
+    this.warning,
   });
 
   // A helper method to create a copy of the object with modified fields
@@ -39,6 +44,7 @@ class Medication {
     DateTime? startDate,
     int? durationInDays,
     List<DateTime>? takenLogs,
+    String? warning,
   }) {
     return Medication(
       id: id ?? this.id,
@@ -48,6 +54,7 @@ class Medication {
       startDate: startDate ?? this.startDate,
       durationInDays: durationInDays ?? this.durationInDays,
       takenLogs: takenLogs ?? this.takenLogs,
+      warning: warning ?? this.warning,
     );
   }
 
@@ -59,6 +66,7 @@ class Medication {
       'startDate': Timestamp.fromDate(startDate),
       'durationInDays': durationInDays,
       'takenLogs': takenLogs.map((dt) => Timestamp.fromDate(dt)).toList(),
+      'warning': warning,
     };
   }
 
@@ -75,6 +83,7 @@ class Medication {
               ?.map((t) => (t as Timestamp).toDate())
               .toList() ??
           [],
+      warning: data['warning'] as String?,
     );
   }
 }
