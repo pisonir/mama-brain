@@ -123,6 +123,126 @@ void main() {
         container.dispose();
       });
 
+      test('collapses repeated symptoms of the same type for the same family member into one event', () {
+        final symptoms = [
+          Symptom(
+            id: 's1',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15, 8, 0),
+            type: SymptomType.fever,
+          ),
+          Symptom(
+            id: 's2',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15, 14, 0),
+            type: SymptomType.fever,
+          ),
+          Symptom(
+            id: 's3',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15, 20, 0),
+            type: SymptomType.fever,
+          ),
+        ];
+
+        final container = makeContainer(symptoms: symptoms);
+        final events = container.read(historyEventsProvider);
+        final dayEvents = events[normalize(DateTime(2025, 6, 15))]!;
+
+        expect(dayEvents.length, 1);
+        expect(dayEvents.first.title, 'Fever');
+        container.dispose();
+      });
+
+      test('keeps separate events for different symptom types on the same day', () {
+        final symptoms = [
+          Symptom(
+            id: 's1',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15, 8, 0),
+            type: SymptomType.fever,
+          ),
+          Symptom(
+            id: 's2',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15, 14, 0),
+            type: SymptomType.fever,
+          ),
+          Symptom(
+            id: 's3',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15, 20, 0),
+            type: SymptomType.cough,
+          ),
+        ];
+
+        final container = makeContainer(symptoms: symptoms);
+        final events = container.read(historyEventsProvider);
+        final dayEvents = events[normalize(DateTime(2025, 6, 15))]!;
+
+        expect(dayEvents.length, 2);
+        expect(dayEvents.map((e) => e.title).toSet(), {'Fever', 'Cough'});
+        container.dispose();
+      });
+
+      test('keeps separate events for the same symptom type logged by different family members', () {
+        final otherMember = FamilyMember(
+          id: 'fm-2',
+          name: 'Bob',
+          colorValue: 0xFF0000FF,
+        );
+        final symptoms = [
+          Symptom(
+            id: 's1',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15, 8, 0),
+            type: SymptomType.fever,
+          ),
+          Symptom(
+            id: 's2',
+            familyMemberId: 'fm-2',
+            timestamp: DateTime(2025, 6, 15, 14, 0),
+            type: SymptomType.fever,
+          ),
+        ];
+
+        final container = makeContainer(
+          family: [familyMember, otherMember],
+          symptoms: symptoms,
+        );
+        final events = container.read(historyEventsProvider);
+        final dayEvents = events[normalize(DateTime(2025, 6, 15))]!;
+
+        expect(dayEvents.length, 2);
+        expect(dayEvents.map((e) => e.color).toSet(),
+            {const Color(0xFFFF0000), const Color(0xFF0000FF)});
+        container.dispose();
+      });
+
+      test('keeps separate events for the same symptom on different days', () {
+        final symptoms = [
+          Symptom(
+            id: 's1',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15, 8, 0),
+            type: SymptomType.fever,
+          ),
+          Symptom(
+            id: 's2',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 16, 8, 0),
+            type: SymptomType.fever,
+          ),
+        ];
+
+        final container = makeContainer(symptoms: symptoms);
+        final events = container.read(historyEventsProvider);
+
+        expect(events[normalize(DateTime(2025, 6, 15))]!.length, 1);
+        expect(events[normalize(DateTime(2025, 6, 16))]!.length, 1);
+        container.dispose();
+      });
+
       test('uses family member color', () {
         final symptoms = [
           Symptom(

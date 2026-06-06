@@ -31,12 +31,20 @@ final historyEventsProvider = Provider<Map<DateTime, List<HistoryEvent>>>((ref) 
   }
 
   // 1. Process Symptoms
+  // Collapse repeats of the same symptom (by family member, title and day)
+  // into a single calendar entry, e.g. measuring a fever 3 times in a day
+  // should still show just one "Fever" marker on that day.
+  final seenSymptoms = <String>{};
   for (final s in symptoms) {
+    final title = s.type == SymptomType.other && s.note != null && s.note!.isNotEmpty
+        ? s.note!
+        : s.type.name[0].toUpperCase() + s.type.name.substring(1);
+    final dedupeKey = '${normalize(s.timestamp)}|${s.familyMemberId}|$title';
+    if (!seenSymptoms.add(dedupeKey)) continue;
+
     addEvent(s.timestamp, HistoryEvent(
       id: s.id,
-      title: s.type == SymptomType.other && s.note != null && s.note!.isNotEmpty
-          ? s.note!
-          : s.type.name[0].toUpperCase() + s.type.name.substring(1),
+      title: title,
       date: s.timestamp,
       color: getFamilyColor(s.familyMemberId),
       type: EventType.symptom,
