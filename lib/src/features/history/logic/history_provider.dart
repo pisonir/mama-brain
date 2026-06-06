@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/models/medication.dart';
 import '../../../core/models/symptom.dart';
 import '../../family/logic/family_provider.dart';
 import '../../medications/logic/medication_provider.dart';
@@ -53,54 +52,20 @@ final historyEventsProvider = Provider<Map<DateTime, List<HistoryEvent>>>((ref) 
   }
 
   // 2. Process Medications
+  // Only show a medication on days it was actually marked as taken (checked
+  // off in the medication view) — not for every day it was scheduled.
   for (final m in meds) {
     final color = getFamilyColor(m.familyMemberId);
-    if (m.type == MedicationType.oneOff){
+    for (final takenDate in m.takenLogs) {
       addEvent(
-        m.startDate, HistoryEvent(
-          id: m.id, 
-          title: m.name, 
-          date: m.startDate, 
-          color: color, 
+        takenDate, HistoryEvent(
+          id: m.id,
+          title: m.name,
+          date: takenDate,
+          color: color,
           type: EventType.medication,
           )
       );
-    }
-    else if (m.type == MedicationType.temporary && m.durationInDays != null) {
-      // Loop through each day of the medication duration
-      for (int i = 0; i < m.durationInDays!; i++) {
-        final date = m.startDate.add(Duration(days: i));
-        addEvent(
-          date, HistoryEvent(
-            id: m.id, 
-            title: m.name, 
-            date: date, 
-            color: color, 
-            type: EventType.medication,
-            )
-        );
-      }
-    }
-    else if (m.type == MedicationType.permanent) {
-      // Show from start date until today (limit to 365 days to avoid infinte loops)
-      final today = DateTime.now();
-      DateTime current = m.startDate;
-      int safetyCounter = 0;
-
-      while (normalize(current).isBefore(today) || normalize(current).isAtSameMomentAs(today)) {
-        if (safetyCounter > 365) break; // Safety break to prevent infinite loop
-        addEvent(
-          current, HistoryEvent(
-            id: m.id, 
-            title: m.name, 
-            date: current, 
-            color: color, 
-            type: EventType.medication,
-            )
-        );
-        current = current.add(const Duration(days: 1));
-        safetyCounter++;
-      }
     }
   }
 
