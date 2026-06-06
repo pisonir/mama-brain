@@ -60,19 +60,14 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
 
             // Custom UI builders
             calendarBuilders: CalendarBuilders(
-              // This controls how to 'markers' (dots/events) look
+              // Show a small dot per family member with an event that day,
+              // anchored to the bottom of the cell so the day number
+              // (centered by default) always stays readable — even on busy
+              // days. Full event details are listed below once a day is
+              // selected, so no information is lost by keeping this compact.
               markerBuilder: (context, date, dayEvents) {
                 if (dayEvents.isEmpty) return const SizedBox();
-
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(), // Don't scroll inside the cell
-                  itemCount: dayEvents.length,
-                  itemBuilder: (context, index) {
-                    final event = dayEvents[index] as HistoryEvent;
-                    return _buildEventBar(event);
-                  },
-                );
+                return _buildDayMarkers(dayEvents.cast<HistoryEvent>());
               },
             ),
 
@@ -150,27 +145,44 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     );
   }
 
-  // The tiny bar inside the calendar cell
-  Widget _buildEventBar(HistoryEvent event) {
-    final isSymptom = event.type == EventType.symptom;
+  // Compact dot indicators for a calendar cell: one dot per family member
+  // with an event that day (deduped by their color), capped so the row
+  // never grows tall enough to overlap the day number above it.
+  Widget _buildDayMarkers(List<HistoryEvent> dayEvents) {
+    const maxDots = 4;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 0.5, horizontal:1),
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      height: 14,
-      decoration: BoxDecoration(
-        color: isSymptom ? event.color : Colors.white,
-        borderRadius: BorderRadius.circular(2),
-        border: isSymptom ? null : Border.all(color: event.color, width: 1),
-      ),
-      child: Text(
-        event.title,
-        style: TextStyle(
-          color: isSymptom ? Colors.white : event.color,
-          fontSize: 8,
-          fontWeight: FontWeight.bold,
+    final memberColors = <Color>[];
+    for (final event in dayEvents) {
+      if (!memberColors.contains(event.color)) memberColors.add(event.color);
+    }
+
+    final visibleColors = memberColors.take(maxDots).toList();
+    final overflow = memberColors.length - visibleColors.length;
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final color in visibleColors)
+              Container(
+                width: 6,
+                height: 6,
+                margin: const EdgeInsets.symmetric(horizontal: 1),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+            if (overflow > 0)
+              Padding(
+                padding: const EdgeInsets.only(left: 1),
+                child: Text(
+                  '+$overflow',
+                  style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold),
+                ),
+              ),
+          ],
         ),
-        overflow: TextOverflow.ellipsis, // Truncatte long text "Paracet..."
       ),
     );
   }
