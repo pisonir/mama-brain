@@ -263,7 +263,7 @@ void main() {
     });
 
     group('oneOff medication events', () {
-      test('creates single event on start date', () {
+      test('creates an event on the day it was marked as taken', () {
         final meds = [
           Medication(
             id: 'm1',
@@ -271,6 +271,7 @@ void main() {
             familyMemberId: 'fm-1',
             type: MedicationType.oneOff,
             startDate: DateTime(2025, 6, 15),
+            takenLogs: [DateTime(2025, 6, 15, 9, 0)],
           ),
         ];
 
@@ -284,10 +285,28 @@ void main() {
         expect(dayEvents.first.type, EventType.medication);
         container.dispose();
       });
+
+      test('creates no event when it has not been marked as taken', () {
+        final meds = [
+          Medication(
+            id: 'm1',
+            name: 'Ibuprofen',
+            familyMemberId: 'fm-1',
+            type: MedicationType.oneOff,
+            startDate: DateTime(2025, 6, 15),
+          ),
+        ];
+
+        final container = makeContainer(medications: meds);
+        final events = container.read(historyEventsProvider);
+
+        expect(events.isEmpty, isTrue);
+        container.dispose();
+      });
     });
 
     group('temporary medication events', () {
-      test('creates one event per day for duration', () {
+      test('creates an event only for the days marked as taken, not the full duration', () {
         final meds = [
           Medication(
             id: 'm2',
@@ -295,7 +314,11 @@ void main() {
             familyMemberId: 'fm-1',
             type: MedicationType.temporary,
             startDate: DateTime(2025, 6, 10),
-            durationInDays: 3,
+            durationInDays: 7,
+            takenLogs: [
+              DateTime(2025, 6, 10, 9, 0),
+              DateTime(2025, 6, 12, 9, 0),
+            ],
           ),
         ];
 
@@ -303,25 +326,44 @@ void main() {
         final events = container.read(historyEventsProvider);
 
         expect(events[normalize(DateTime(2025, 6, 10))], isNotNull);
-        expect(events[normalize(DateTime(2025, 6, 11))], isNotNull);
+        expect(events[normalize(DateTime(2025, 6, 11))], isNull);
         expect(events[normalize(DateTime(2025, 6, 12))], isNotNull);
         expect(events[normalize(DateTime(2025, 6, 13))], isNull);
 
-        // Total medication events across all days
+        // Only the two taken days should appear, not all 7 scheduled days
         final allMedEvents = events.values
             .expand((list) => list)
             .where((e) => e.type == EventType.medication);
-        expect(allMedEvents.length, 3);
+        expect(allMedEvents.length, 2);
+        container.dispose();
+      });
+
+      test('creates no events for a medication that has never been taken', () {
+        final meds = [
+          Medication(
+            id: 'm2',
+            name: 'Amoxicillin',
+            familyMemberId: 'fm-1',
+            type: MedicationType.temporary,
+            startDate: DateTime(2025, 6, 10),
+            durationInDays: 7,
+          ),
+        ];
+
+        final container = makeContainer(medications: meds);
+        final events = container.read(historyEventsProvider);
+
+        expect(events.isEmpty, isTrue);
         container.dispose();
       });
     });
 
     group('permanent medication events', () {
-      test('creates events from start date to today', () {
-        // Use a recent start date (3 days ago) for determinism
+      test('creates an event only for the days marked as taken', () {
         final now = DateTime.now();
         final startDate = DateTime(now.year, now.month, now.day)
             .subtract(const Duration(days: 2));
+        final takenDay = startDate.add(const Duration(days: 1));
 
         final meds = [
           Medication(
@@ -330,22 +372,19 @@ void main() {
             familyMemberId: 'fm-1',
             type: MedicationType.permanent,
             startDate: startDate,
+            takenLogs: [takenDay.add(const Duration(hours: 9))],
           ),
         ];
 
         final container = makeContainer(medications: meds);
         final events = container.read(historyEventsProvider);
 
-        // Should have 3 days: startDate, startDate+1, today
         final allMedEvents = events.values
             .expand((list) => list)
             .where((e) => e.type == EventType.medication);
-        expect(allMedEvents.length, 3);
-
-        // Verify start date has an event
-        expect(events[normalize(startDate)], isNotNull);
-        // Verify today has an event
-        expect(events[normalize(now)], isNotNull);
+        expect(allMedEvents.length, 1);
+        expect(events[normalize(takenDay)], isNotNull);
+        expect(events[normalize(startDate)], isNull);
         container.dispose();
       });
     });
@@ -367,6 +406,7 @@ void main() {
             familyMemberId: 'fm-1',
             type: MedicationType.oneOff,
             startDate: DateTime(2025, 6, 15, 8, 0),
+            takenLogs: [DateTime(2025, 6, 15, 8, 0)],
           ),
         ];
 
@@ -398,6 +438,7 @@ void main() {
             familyMemberId: 'fm-1',
             type: MedicationType.oneOff,
             startDate: DateTime(2025, 6, 16),
+            takenLogs: [DateTime(2025, 6, 16)],
           ),
         ];
 

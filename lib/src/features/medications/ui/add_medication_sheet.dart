@@ -17,6 +17,7 @@ class AddMedicationSheet extends ConsumerStatefulWidget {
 
 class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
   late final TextEditingController _nameController;
+  late final TextEditingController _warningController;
 
   // Tracks which quick-chip name is highlighted (null if user typed manually)
   String? _selectedQuickChipName;
@@ -40,23 +41,31 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
     "Antibiotic",
     "Navisin",
     "Antifungal Cream",
-    "Vitamin D",
-    "Iron",
   ];
 
   // Quick chips that should default to a specific type and duration
   static const _quickChipDefaults = <String, ({MedicationType type, int? days})>{
+    "Antibiotic": (type: MedicationType.temporary, days: 7),
     "Navisin": (type: MedicationType.temporary, days: 7),
     "Antifungal Cream": (type: MedicationType.temporary, days: 7),
+  };
+
+  // Suggested warning statements for specific quick-chip medications
+  static const _quickChipWarnings = <String, String>{
+    "Paracetamol": "Take every 6 hours, not less",
+    "Ibuprofen": "Take every 8 hours, not less",
+    "Navisin": "Use for a maximum of 7 days, wait 7 days before using it again",
   };
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController();
+    _warningController = TextEditingController();
     if (widget.medicationToEdit != null) {
       final med = widget.medicationToEdit!;
       _nameController.text = med.name;
+      _warningController.text = med.warning ?? '';
       _selectedType = med.type;
       _selectedMemberId = med.familyMemberId;
       _selectedDate = med.startDate;
@@ -90,10 +99,11 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
   @override
   void dispose() {
     _nameController.dispose();
+    _warningController.dispose();
     super.dispose();
   }
 
-  // Helper to update name (and optionally type/duration) from quick chips
+  // Helper to update name (and optionally type/duration/warning) from quick chips
   void _fillName(String name) {
     final defaults = _quickChipDefaults[name];
     setState(() {
@@ -110,6 +120,10 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
     _nameController.selection = TextSelection.fromPosition(
       TextPosition(offset: name.length),
     );
+    final suggestedWarning = _quickChipWarnings[name];
+    if (suggestedWarning != null) {
+      _warningController.text = suggestedWarning;
+    }
   }
 
   @override
@@ -240,6 +254,20 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
             ),
           ],
 
+          const SizedBox(height: 16),
+
+          // Warning Input
+          TextField(
+            controller: _warningController,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: "Warning (optional)",
+              hintText: "e.g., take every 6 hours, not less",
+              prefixIcon: Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              border: OutlineInputBorder(),
+            ),
+          ),
+
           const Divider(height: 30),
 
           // DATE PICKER ROW
@@ -319,6 +347,8 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
                   _selectedDate.year, _selectedDate.month, _selectedDate.day,
                   _selectedTime.hour, _selectedTime.minute,
                 );
+                final trimmedWarning = _warningController.text.trim();
+                final warning = trimmedWarning.isEmpty ? null : trimmedWarning;
                 // EDIT MODE
                 if (widget.medicationToEdit != null) {
                   ref.read(medicationProvider.notifier).editMedication(
@@ -328,6 +358,7 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
                     type: _selectedType,
                     durationInDays: _selectedType == MedicationType.temporary ? _durationDays.toInt() : null,
                     originalStartDate: _selectedDate,
+                    warning: warning,
                   );
                 }
                 // ADD MODE
@@ -339,6 +370,7 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
                     startDate: _selectedDate,
                     durationInDays: _selectedType == MedicationType.temporary ? _durationDays.toInt() : null,
                     takenAt: takenAt,
+                    warning: warning,
                   );
                 }
 
