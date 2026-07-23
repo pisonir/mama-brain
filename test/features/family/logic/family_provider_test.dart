@@ -100,6 +100,116 @@ void main() {
 
         expect(notifier.state.length, 1);
       });
+
+      test('cascade-deletes the member\'s medications and symptoms', () async {
+        final groupRef = fakeFirestore.collection('familyGroups').doc(groupId);
+        final notifier = createNotifier();
+        await notifier.addMember(name: 'Target', colorValue: 0xFFABCDEF);
+        await Future.delayed(Duration.zero);
+        final memberId = notifier.state.first.id;
+
+        // Seed data owned by this member and by someone else.
+        await groupRef
+            .collection('medications')
+            .doc('med-own')
+            .set({'familyMemberId': memberId});
+        await groupRef
+            .collection('medications')
+            .doc('med-other')
+            .set({'familyMemberId': 'someone-else'});
+        await groupRef
+            .collection('symptoms')
+            .doc('sym-own')
+            .set({'familyMemberId': memberId});
+        await groupRef
+            .collection('symptoms')
+            .doc('sym-other')
+            .set({'familyMemberId': 'someone-else'});
+
+        await notifier.deleteMember(memberId);
+
+        final meds = await groupRef.collection('medications').get();
+        final symptoms = await groupRef.collection('symptoms').get();
+        expect(meds.docs.map((d) => d.id), ['med-other']);
+        expect(symptoms.docs.map((d) => d.id), ['sym-other']);
+      });
+    });
+
+    group('ordering', () {
+      test('addMember assigns increasing order values', () async {
+        final notifier = createNotifier();
+        await notifier.addMember(name: 'A', colorValue: 0xFF111111);
+        await Future.delayed(Duration.zero);
+        await notifier.addMember(name: 'B', colorValue: 0xFF222222);
+        await Future.delayed(Duration.zero);
+        await notifier.addMember(name: 'C', colorValue: 0xFF333333);
+        await Future.delayed(Duration.zero);
+
+        final orders = {for (final m in notifier.state) m.name: m.order};
+        expect(orders['A'], 0);
+        expect(orders['B'], 1);
+        expect(orders['C'], 2);
+      });
+
+      test('state is sorted by order ascending', () async {
+        final col = fakeFirestore
+            .collection('familyGroups')
+            .doc(groupId)
+            .collection('members');
+        await col
+            .doc('m1')
+            .set({'name': 'Third', 'colorValue': 0xFF000000, 'order': 2});
+        await col
+            .doc('m2')
+            .set({'name': 'First', 'colorValue': 0xFF000000, 'order': 0});
+        await col
+            .doc('m3')
+            .set({'name': 'Second', 'colorValue': 0xFF000000, 'order': 1});
+
+        final notifier = createNotifier();
+        await Future.delayed(Duration.zero);
+
+        expect(notifier.state.map((m) => m.name).toList(),
+            ['First', 'Second', 'Third']);
+      });
+
+      test('reorderMembers moves a member and rewrites order', () async {
+        final notifier = createNotifier();
+        await notifier.addMember(name: 'A', colorValue: 0xFF111111);
+        await Future.delayed(Duration.zero);
+        await notifier.addMember(name: 'B', colorValue: 0xFF222222);
+        await Future.delayed(Duration.zero);
+        await notifier.addMember(name: 'C', colorValue: 0xFF333333);
+        await Future.delayed(Duration.zero);
+
+        // Move C (index 2) to the front (index 0).
+        await notifier.reorderMembers(2, 0);
+        await Future.delayed(Duration.zero);
+
+        expect(notifier.state.map((m) => m.name).toList(), ['C', 'A', 'B']);
+        expect(notifier.state.map((m) => m.order).toList(), [0, 1, 2]);
+      });
+    });
+
+    group('editMember', () {
+      test('updates name and color while preserving order', () async {
+        final notifier = createNotifier();
+        await notifier.addMember(name: 'First', colorValue: 0xFF111111);
+        await Future.delayed(Duration.zero);
+        await notifier.addMember(name: 'Keep', colorValue: 0xFF222222);
+        await Future.delayed(Duration.zero);
+        final target = notifier.state.firstWhere((m) => m.name == 'Keep');
+        final originalOrder = target.order;
+
+        await notifier.editMember(
+            id: target.id, name: 'Renamed', colorValue: 0xFF999999);
+        await Future.delayed(Duration.zero);
+
+        final updated = notifier.state.firstWhere((m) => m.id == target.id);
+        expect(updated.name, 'Renamed');
+        expect(updated.colorValue, 0xFF999999);
+        expect(updated.order, originalOrder);
+      });
     });
   });
 }

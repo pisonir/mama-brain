@@ -151,6 +151,28 @@ Future<void> _showEditTakenTimeDialog(
   }
 }
 
+// The taken-log DateTime for [med] on [date], or null if it wasn't taken that
+// day. A medication has at most one log per calendar day.
+DateTime? _takenLogForDay(Medication med, DateTime date) {
+  return med.takenLogs
+      .where((log) =>
+          log.year == date.year &&
+          log.month == date.month &&
+          log.day == date.day)
+      .firstOrNull;
+}
+
+String _typeLabel(MedicationType type) {
+  switch (type) {
+    case MedicationType.oneOff:
+      return 'One-off';
+    case MedicationType.temporary:
+      return 'Temporary';
+    case MedicationType.permanent:
+      return 'Permanent';
+  }
+}
+
 class DailyMedicationList extends ConsumerWidget {
   const DailyMedicationList({super.key});
 
@@ -164,141 +186,190 @@ class DailyMedicationList extends ConsumerWidget {
       return const Center(child: Text('No medications for the selected date.'));
     }
 
+    // Group by (family member, medicine name) so the same medicine logged
+    // several times for the same person collapses into a single block.
+    final groups = <String, List<Medication>>{};
+    for (final med in meds) {
+      groups.putIfAbsent('${med.familyMemberId}###${med.name}', () => []).add(med);
+    }
+
+    // Chronological order (issue #2): within each block, sort entries by taken
+    // time; untaken entries sink to the bottom.
+    for (final entries in groups.values) {
+      entries.sort((a, b) => _compareByTakenTime(a, b, selectedDate));
+    }
+
+    // Order the blocks the same way — earliest taken time first, blocks with
+    // nothing taken yet at the end (alphabetical among themselves).
+    final blocks = groups.values.toList()
+      ..sort((a, b) {
+        final ta = _earliestTaken(a, selectedDate);
+        final tb = _earliestTaken(b, selectedDate);
+        if (ta == null && tb == null) return a.first.name.compareTo(b.first.name);
+        if (ta == null) return 1;
+        if (tb == null) return -1;
+        return ta.compareTo(tb);
+      });
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: meds.length,
+      itemCount: blocks.length,
       itemBuilder: (context, index) {
-        final med = meds[index];
-        final takenLog = med.takenLogs.where(
-          (log) =>
-              log.year == selectedDate.year &&
-              log.month == selectedDate.month &&
-              log.day == selectedDate.day,
-        ).firstOrNull;
-        final isTaken = takenLog != null;
-
-        String subtitleText;
-        if (isTaken) {
-          subtitleText = 'Taken at ${DateFormat.Hm().format(takenLog)}';
-        } else {
-          switch (med.type) {
-            case MedicationType.oneOff:
-              subtitleText = 'One-off';
-            case MedicationType.temporary:
-              subtitleText = 'Temporary';
-            case MedicationType.permanent:
-              subtitleText = 'Permanent';
-          }
-        }
-
-        final member = familyMembers.firstWhere(
-          (m) => m.id == med.familyMemberId,
-          orElse: () => FamilyMember(id: '', name: 'Unknown', colorValue: 0xFF9E9E9E),
+        return _MedicationBlock(
+          entries: blocks[index],
+          selectedDate: selectedDate,
+          familyMembers: familyMembers,
         );
+      },
+    );
+  }
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          color: isTaken ? Colors.green.shade50 : Colors.white,
-          child: ListTile(
-            leading: Checkbox(
-              value: isTaken,
-              onChanged: (val) {
-                if (val == true) {
-                  _showToggleTakenDialog(context, ref, med, selectedDate);
-                } else {
-                  ref
-                      .read(medicationProvider.notifier)
-                      .toggleTaken(med.id, selectedDate);
-                }
-              },
-            ),
-            title: Text(
-              med.name,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                decoration: isTaken ? TextDecoration.lineThrough : null,
-                color: isTaken ? Colors.grey : Colors.black,
-              ),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  int _compareByTakenTime(Medication a, Medication b, DateTime date) {
+    final ta = _takenLogForDay(a, date);
+    final tb = _takenLogForDay(b, date);
+    if (ta == null && tb == null) return 0;
+    if (ta == null) return 1;
+    if (tb == null) return -1;
+    return ta.compareTo(tb);
+  }
+
+  DateTime? _earliestTaken(List<Medication> entries, DateTime date) {
+    final times = entries
+        .map((m) => _takenLogForDay(m, date))
+        .whereType<DateTime>()
+        .toList()
+      ..sort();
+    return times.firstOrNull;
+  }
+}
+
+// A block groups every entry of the same medicine for the same person on the
+// selected day: one header (member + medicine name + an overall edit), then a
+// row per logged dose, each with its own taken time (tap to edit) and a delete.
+class _MedicationBlock extends ConsumerWidget {
+  final List<Medication> entries;
+  final DateTime selectedDate;
+  final List<FamilyMember> familyMembers;
+
+  const _MedicationBlock({
+    required this.entries,
+    required this.selectedDate,
+    required this.familyMembers,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final med0 = entries.first;
+    final member = familyMembers.firstWhere(
+      (m) => m.id == med0.familyMemberId,
+      orElse: () =>
+          FamilyMember(id: '', name: 'Unknown', colorValue: 0xFF9E9E9E),
+    );
+    final allTaken =
+        entries.every((m) => _takenLogForDay(m, selectedDate) != null);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      color: allTaken ? Colors.green.shade50 : Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: member dot + name, and the block-wide edit (edits the
+            // medicine's details for the whole block).
+            Row(
               children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 6,
-                      backgroundColor: Color(member.colorValue),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      member.name,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
+                CircleAvatar(
+                  radius: 6,
+                  backgroundColor: Color(member.colorValue),
                 ),
-                if (isTaken)
-                  GestureDetector(
-                    onTap: () => _showEditTakenTimeDialog(
-                      context, ref, med, selectedDate, takenLog,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          subtitleText,
-                          style: const TextStyle(color: Colors.green),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.edit, size: 12, color: Colors.green),
-                      ],
-                    ),
-                  )
-                else
-                  Text(subtitleText),
-                if (med.warning != null && med.warning!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.orange),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            med.warning!,
-                            style: const TextStyle(fontSize: 12, color: Colors.orange),
-                          ),
-                        ),
-                      ],
-                    ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    member.name,
+                    style: const TextStyle(fontSize: 12),
                   ),
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+                ),
                 IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.grey),
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                  tooltip: 'Edit medication',
                   onPressed: () {
                     showModalBottomSheet(
                       context: context,
                       isScrollControlled: true,
-                      builder: (context) =>
-                          AddMedicationSheet(medicationToEdit: med),
+                      builder: (_) => AddMedicationSheet(medicationToEdit: med0),
                     );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.redAccent),
-                  onPressed: () {
-                    _confirmDelete(context, ref, med);
                   },
                 ),
               ],
             ),
-          ),
-        );
-      },
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                med0.name,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  decoration: allTaken ? TextDecoration.lineThrough : null,
+                  color: allTaken ? Colors.grey : Colors.black,
+                ),
+              ),
+            ),
+            for (final med in entries) _buildEntryRow(context, ref, med),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEntryRow(BuildContext context, WidgetRef ref, Medication med) {
+    final takenLog = _takenLogForDay(med, selectedDate);
+    final isTaken = takenLog != null;
+
+    return Row(
+      children: [
+        Checkbox(
+          visualDensity: VisualDensity.compact,
+          value: isTaken,
+          onChanged: (val) {
+            if (val == true) {
+              _showToggleTakenDialog(context, ref, med, selectedDate);
+            } else {
+              ref
+                  .read(medicationProvider.notifier)
+                  .toggleTaken(med.id, selectedDate);
+            }
+          },
+        ),
+        Expanded(
+          child: isTaken
+              ? GestureDetector(
+                  onTap: () => _showEditTakenTimeDialog(
+                    context, ref, med, selectedDate, takenLog,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Taken at ${DateFormat.Hm().format(takenLog)}',
+                        style: const TextStyle(color: Colors.green),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.edit, size: 12, color: Colors.green),
+                    ],
+                  ),
+                )
+              : Text(_typeLabel(med.type)),
+        ),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
+          tooltip: 'Delete this entry',
+          onPressed: () => _confirmDelete(context, ref, med),
+        ),
+      ],
     );
   }
 }

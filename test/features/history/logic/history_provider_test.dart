@@ -452,5 +452,137 @@ void main() {
         container.dispose();
       });
     });
+
+    group('deduplication and counts', () {
+      test('a single occurrence has a count of 1', () {
+        final meds = [
+          Medication(
+            id: 'm1',
+            name: 'Ibuprofen',
+            familyMemberId: 'fm-1',
+            type: MedicationType.oneOff,
+            startDate: DateTime(2025, 6, 15),
+            takenLogs: [DateTime(2025, 6, 15, 9, 0)],
+          ),
+        ];
+
+        final container = makeContainer(medications: meds);
+        final events = container.read(historyEventsProvider);
+        final event = events[normalize(DateTime(2025, 6, 15))]!.first;
+
+        expect(event.count, 1);
+        container.dispose();
+      });
+
+      test('collapses the same medicine taken as several entries in one day '
+          'into a single event with the total count', () {
+        final meds = [
+          Medication(
+            id: 'm1',
+            name: 'Paracetamol',
+            familyMemberId: 'fm-1',
+            type: MedicationType.oneOff,
+            startDate: DateTime(2025, 6, 15),
+            takenLogs: [DateTime(2025, 6, 15, 8, 0)],
+          ),
+          Medication(
+            id: 'm2',
+            name: 'Paracetamol',
+            familyMemberId: 'fm-1',
+            type: MedicationType.oneOff,
+            startDate: DateTime(2025, 6, 15),
+            takenLogs: [DateTime(2025, 6, 15, 14, 0)],
+          ),
+        ];
+
+        final container = makeContainer(medications: meds);
+        final events = container.read(historyEventsProvider);
+        final dayEvents = events[normalize(DateTime(2025, 6, 15))]!;
+
+        expect(dayEvents.length, 1);
+        expect(dayEvents.first.title, 'Paracetamol');
+        expect(dayEvents.first.count, 2);
+        container.dispose();
+      });
+
+      test('collapses a medication logged multiple times in one day', () {
+        final meds = [
+          Medication(
+            id: 'm1',
+            name: 'Paracetamol',
+            familyMemberId: 'fm-1',
+            type: MedicationType.permanent,
+            startDate: DateTime(2025, 6, 15),
+            takenLogs: [
+              DateTime(2025, 6, 15, 8, 0),
+              DateTime(2025, 6, 15, 14, 0),
+              DateTime(2025, 6, 15, 20, 0),
+            ],
+          ),
+        ];
+
+        final container = makeContainer(medications: meds);
+        final events = container.read(historyEventsProvider);
+        final dayEvents = events[normalize(DateTime(2025, 6, 15))]!;
+
+        expect(dayEvents.length, 1);
+        expect(dayEvents.first.count, 3);
+        container.dispose();
+      });
+
+      test('collapsed repeated symptom carries the occurrence count', () {
+        final symptoms = [
+          Symptom(
+            id: 's1',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15, 8, 0),
+            type: SymptomType.fever,
+          ),
+          Symptom(
+            id: 's2',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15, 14, 0),
+            type: SymptomType.fever,
+          ),
+        ];
+
+        final container = makeContainer(symptoms: symptoms);
+        final events = container.read(historyEventsProvider);
+        final dayEvents = events[normalize(DateTime(2025, 6, 15))]!;
+
+        expect(dayEvents.length, 1);
+        expect(dayEvents.first.count, 2);
+        container.dispose();
+      });
+
+      test('different medicines for the same person stay separate', () {
+        final meds = [
+          Medication(
+            id: 'm1',
+            name: 'Paracetamol',
+            familyMemberId: 'fm-1',
+            type: MedicationType.oneOff,
+            startDate: DateTime(2025, 6, 15),
+            takenLogs: [DateTime(2025, 6, 15, 8, 0)],
+          ),
+          Medication(
+            id: 'm2',
+            name: 'Ibuprofen',
+            familyMemberId: 'fm-1',
+            type: MedicationType.oneOff,
+            startDate: DateTime(2025, 6, 15),
+            takenLogs: [DateTime(2025, 6, 15, 14, 0)],
+          ),
+        ];
+
+        final container = makeContainer(medications: meds);
+        final events = container.read(historyEventsProvider);
+        final dayEvents = events[normalize(DateTime(2025, 6, 15))]!;
+
+        expect(dayEvents.length, 2);
+        expect(dayEvents.every((e) => e.count == 1), isTrue);
+        container.dispose();
+      });
+    });
   });
 }

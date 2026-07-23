@@ -142,7 +142,7 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
             children: SymptomType.values.map((type) {
               final isSelected = _selectedType == type;
               return FilterChip(
-                label: Text(type.name.toUpperCase()),
+                label: Text(type.label),
                 selected: isSelected,
                 showCheckmark: false,
                 color: WidgetStatePropertyAll(
@@ -263,6 +263,8 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
         return Icons.masks;
       case SymptomType.vomit:
         return Icons.sick;
+      case SymptomType.diarrhea:
+        return Icons.wc;
       case SymptomType.pain:
         return Icons.healing;
       case SymptomType.rash:

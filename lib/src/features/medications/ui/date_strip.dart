@@ -17,50 +17,84 @@ class DateStrip extends ConsumerWidget {
     final centerDate = ref.watch(dateStripCenterProvider);
     final weekDates = getWeekDatesFrom(centerDate);
 
+    // Only offer the "Today" shortcut when today isn't already visible in the
+    // strip — this covers both scrolling several weeks away and selecting a
+    // far-off date, while staying out of the way when you're already on today.
+    final isTodayVisible =
+        weekDates.any((date) => _isSameDay(date, DateTime.now()));
+
+    void jumpToToday() {
+      final now = DateTime.now();
+      ref.read(selectedDateProvider.notifier).state = now;
+      ref.read(dateStripCenterProvider.notifier).state = now;
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       color: Colors.white,
-      child: Row(
+      child: Column(
         children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () {
-              final currentDate = ref.read(dateStripCenterProvider);
-              ref.read(dateStripCenterProvider.notifier).state =
-                  currentDate.subtract(const Duration(days: 5));
-            },
-          ),
-
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: weekDates.map((date) {
-                final isSelected = _isSameDay(date, selectedDate);
-                final isToday = _isSameDay(date, DateTime.now());
-                return GestureDetector(
-                  onTap: () {
-                    ref.read(selectedDateProvider.notifier).state = date;
-                    // center the strip on the selected date
-                    ref.read(dateStripCenterProvider.notifier).state = date;
-                  },
-                  child: _DateCard(
-                    date: date,
-                    isSelected: isSelected,
-                    isToday: isToday,
+          if (!isTodayVisible)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12, bottom: 4),
+                child: TextButton.icon(
+                  onPressed: jumpToToday,
+                  icon: const Icon(Icons.today, size: 16),
+                  label: const Text('Today'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                );
-              }).toList(),
+                ),
+              ),
             ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () {
+                  final currentDate = ref.read(dateStripCenterProvider);
+                  ref.read(dateStripCenterProvider.notifier).state =
+                      currentDate.subtract(const Duration(days: 5));
+                },
+              ),
+
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: weekDates.map((date) {
+                    final isSelected = _isSameDay(date, selectedDate);
+                    final isToday = _isSameDay(date, DateTime.now());
+                    return GestureDetector(
+                      onTap: () {
+                        ref.read(selectedDateProvider.notifier).state = date;
+                        // center the strip on the selected date
+                        ref.read(dateStripCenterProvider.notifier).state = date;
+                      },
+                      child: _DateCard(
+                        date: date,
+                        isSelected: isSelected,
+                        isToday: isToday,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () {
+                  final currentDate = ref.read(dateStripCenterProvider);
+                  ref.read(dateStripCenterProvider.notifier).state =
+                      currentDate.add(const Duration(days: 5));
+                },
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right),
-            onPressed: () {
-              final currentDate = ref.read(dateStripCenterProvider);
-              ref.read(dateStripCenterProvider.notifier).state =
-                  currentDate.add(const Duration(days: 5));
-            },
-          ),
-      ]),
+        ],
+      ),
     );
   }
 }

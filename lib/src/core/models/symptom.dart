@@ -4,9 +4,35 @@ enum SymptomType {
   fever,
   cough,
   vomit,
+  diarrhea,
   pain,
   rash,
   other,
+}
+
+/// A single source of truth for how each symptom type is written in the UI,
+/// so the label reads the same (Title Case) everywhere — chips, the daily
+/// list, and the history calendar — instead of a mix of UPPERCASE and
+/// lowercase spellings.
+extension SymptomTypeLabel on SymptomType {
+  String get label {
+    switch (this) {
+      case SymptomType.fever:
+        return 'Fever';
+      case SymptomType.cough:
+        return 'Cough';
+      case SymptomType.vomit:
+        return 'Vomit';
+      case SymptomType.diarrhea:
+        return 'Diarrhea';
+      case SymptomType.pain:
+        return 'Pain';
+      case SymptomType.rash:
+        return 'Rash';
+      case SymptomType.other:
+        return 'Other';
+    }
+  }
 }
 
 class Symptom {

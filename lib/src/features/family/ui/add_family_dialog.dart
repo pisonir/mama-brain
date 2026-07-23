@@ -1,38 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/models/family_member.dart';
 import '../logic/family_provider.dart';
+import 'family_colors.dart';
 
+/// Dialog for creating a new family member, or — when [memberToEdit] is
+/// provided — editing an existing member's name and avatar color.
 class AddFamilyDialog extends ConsumerStatefulWidget {
-  const AddFamilyDialog({super.key});
+  final FamilyMember? memberToEdit;
+
+  const AddFamilyDialog({super.key, this.memberToEdit});
 
   @override
   ConsumerState<AddFamilyDialog> createState() => _AddFamilyDialogState();
 }
 
 class _AddFamilyDialogState extends ConsumerState<AddFamilyDialog> {
-  // --- STATE VARIABLES (the Memory) ---
-
-  // 1. The controller: This listens to what the user types.
+  // The controller: this listens to what the user types.
   late final TextEditingController _nameController;
 
-  // 2. The Color: we default to the first color in our list
-  Color _selectedColor = const Color(0xFF5B8DEF);
+  // The currently picked color. Defaults to the first palette color for new
+  // members, or the member's existing color when editing.
+  late Color _selectedColor;
 
-  // 3. The Options: A list of colors the user can pick from
-  final List<Color> _colorOptions = [
-      const Color(0xFF5B8DEF), // Blue
-      const Color(0xFFE05C5C), // Coral
-      const Color(0xFF4CAF87), // Emerald
-      const Color(0xFFE0923A), // Amber
-      const Color(0xFF9067C6), // Purple
-      const Color(0xFF2AADBA), // Teal
-    ];
+  bool get _isEditing => widget.memberToEdit != null;
 
   @override
   void initState() {
     super.initState();
-    // We initialize the text controller when the widget starts
-    _nameController = TextEditingController();
+    _nameController =
+        TextEditingController(text: widget.memberToEdit?.name ?? '');
+    _selectedColor = widget.memberToEdit != null
+        ? Color(widget.memberToEdit!.colorValue)
+        : kFamilyColorOptions.first;
   }
 
   @override
@@ -45,7 +45,7 @@ class _AddFamilyDialogState extends ConsumerState<AddFamilyDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text("New Family Member"),
+      title: Text(_isEditing ? "Edit Family Member" : "New Family Member"),
       content: Column(
         mainAxisSize: MainAxisSize.min, // Shrink to fit content
         children: [
@@ -60,7 +60,10 @@ class _AddFamilyDialogState extends ConsumerState<AddFamilyDialog> {
             textCapitalization: TextCapitalization.sentences,
           ),
           const SizedBox(height: 16),
-          const Text("Pick a Color:"),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text("Pick a Color:"),
+          ),
           const SizedBox(height: 8),
 
           _buildColorPicker(),
@@ -73,7 +76,7 @@ class _AddFamilyDialogState extends ConsumerState<AddFamilyDialog> {
         ),
         FilledButton(
           onPressed: _saveMember,
-          child: const Text("Save"),
+          child: Text(_isEditing ? "Update" : "Save"),
         ),
       ],
     );
@@ -81,37 +84,53 @@ class _AddFamilyDialogState extends ConsumerState<AddFamilyDialog> {
 
   void _saveMember() {
     final name = _nameController.text.trim();
-    if (name.isNotEmpty) {
-      // Access the Provider using 'ref' (available in ConsumerState)
-      // We pass the name and the color value (int)
+    if (name.isEmpty) return;
+
+    if (_isEditing) {
+      ref.read(familyProvider.notifier).editMember(
+            id: widget.memberToEdit!.id,
+            name: name,
+            colorValue: _selectedColor.toARGB32(),
+          );
+    } else {
       ref.read(familyProvider.notifier).addMember(
-        name: name,
-        colorValue: _selectedColor.toARGB32(),
-      );
-      Navigator.pop(context); // Close the dialog
+            name: name,
+            colorValue: _selectedColor.toARGB32(),
+          );
     }
+    Navigator.pop(context); // Close the dialog
   }
 
   Widget _buildColorPicker() {
-    return Wrap( // Wrap arranges children in rows/cols automatically
-      spacing: 8, // Gap between circles
-      children: _colorOptions.map((color) {
-        final isSelected = _selectedColor == color;
-        return GestureDetector(
-          onTap: () {
-            // SET STATE: This tells Flutter "Data changed, redraw the widget!"
-            setState(() {
-              _selectedColor = color;
-            });
-          },
-          child: CircleAvatar(
-            backgroundColor: color,
-            radius: 18,
-            // If selected, show a checkmark icon. If not, show nothing (null)
-            child: isSelected ? const Icon(Icons.check, color: Colors.black54) : null,
+    // A bounded, scrollable area so the enlarged palette never overflows the
+    // dialog on small screens.
+    return SizedBox(
+      width: double.maxFinite,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 180),
+        child: SingleChildScrollView(
+          child: Wrap(
+            spacing: 8, // Gap between circles
+            runSpacing: 8,
+            children: kFamilyColorOptions.map((color) {
+              final isSelected = _selectedColor.toARGB32() == color.toARGB32();
+              return GestureDetector(
+                onTap: () {
+                  // SET STATE: tell Flutter "Data changed, redraw the widget!"
+                  setState(() => _selectedColor = color);
+                },
+                child: CircleAvatar(
+                  backgroundColor: color,
+                  radius: 18,
+                  child: isSelected
+                      ? const Icon(Icons.check, color: Colors.white)
+                      : null,
+                ),
+              );
+            }).toList(),
           ),
-        );
-      }).toList()
+        ),
+      ),
     );
   }
 }

@@ -54,7 +54,7 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
   static const _quickChipWarnings = <String, String>{
     "Paracetamol": "Take every 6 hours, not less",
     "Ibuprofen": "Take every 8 hours, not less",
-    "Navisin": "Use for a maximum of 7 days, wait 7 days before using it again",
+    "Navisin": "Use for a maximum of 7 days, wait 4 days before using it again",
   };
 
   @override
@@ -120,10 +120,10 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
     _nameController.selection = TextSelection.fromPosition(
       TextPosition(offset: name.length),
     );
-    final suggestedWarning = _quickChipWarnings[name];
-    if (suggestedWarning != null) {
-      _warningController.text = suggestedWarning;
-    }
+    // Always sync the warning to this chip's suggested warning — clearing it
+    // to blank when the chip has none, so a previous chip's warning doesn't
+    // linger on a medication that shouldn't have one.
+    _warningController.text = _quickChipWarnings[name] ?? '';
   }
 
   @override

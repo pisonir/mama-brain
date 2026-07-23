@@ -36,12 +36,9 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
             focusedDay: _focusedDay,
             calendarFormat: _calendarFormat,
             startingDayOfWeek: StartingDayOfWeek.monday,
-
-            // Load events for a specific day
-            eventLoader: (day) {
-              final normalized = DateTime(day.year, day.month, day.day);
-              return events[normalized] ?? [];
-            },
+            // Taller rows leave room for the day number plus a couple of
+            // event labels underneath it without crowding.
+            rowHeight: 70,
 
             selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
 
@@ -58,30 +55,22 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               });
             },
 
-            // Custom UI builders
+            // Fully custom cells: day number on top, then up to two compact
+            // event labels (medication/symptom names) coloured per family
+            // member. The number always stays visible above the labels.
             calendarBuilders: CalendarBuilders(
-              // Show a small dot per family member with an event that day,
-              // anchored to the bottom of the cell so the day number
-              // (centered by default) always stays readable — even on busy
-              // days. Full event details are listed below once a day is
-              // selected, so no information is lost by keeping this compact.
-              markerBuilder: (context, date, dayEvents) {
-                if (dayEvents.isEmpty) return const SizedBox();
-                return _buildDayMarkers(dayEvents.cast<HistoryEvent>());
-              },
+              defaultBuilder: (context, day, _) =>
+                  _buildCell(day, events),
+              outsideBuilder: (context, day, _) =>
+                  _buildCell(day, events, isOutside: true),
+              todayBuilder: (context, day, _) =>
+                  _buildCell(day, events, isToday: true),
+              selectedBuilder: (context, day, _) =>
+                  _buildCell(day, events, isSelected: true),
             ),
 
-            // Styling
             calendarStyle: const CalendarStyle(
               cellMargin: EdgeInsets.all(2),
-              todayDecoration: BoxDecoration(
-                color: Colors.orangeAccent,
-                shape: BoxShape.circle,
-              ),
-              selectedDecoration: BoxDecoration(
-                color: Colors.blueAccent,
-                shape: BoxShape.circle,
-              ),
             ),
           ),
 
@@ -145,46 +134,96 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     );
   }
 
-  // Compact dot indicators for a calendar cell: one dot per family member
-  // with an event that day (deduped by their color), capped so the row
-  // never grows tall enough to overlap the day number above it.
-  Widget _buildDayMarkers(List<HistoryEvent> dayEvents) {
-    const maxDots = 4;
+  // A single calendar cell: the day number on top, then up to two compact
+  // event labels (medication/symptom names) tinted with the family member's
+  // colour. Any further events collapse into a "+N" line. The number always
+  // stays above the labels, so it's never covered.
+  Widget _buildCell(
+    DateTime day,
+    Map<DateTime, List<HistoryEvent>> allEvents, {
+    bool isToday = false,
+    bool isSelected = false,
+    bool isOutside = false,
+  }) {
+    final normalized = DateTime(day.year, day.month, day.day);
+    final dayEvents = allEvents[normalized] ?? [];
 
-    final memberColors = <Color>[];
-    for (final event in dayEvents) {
-      if (!memberColors.contains(event.color)) memberColors.add(event.color);
+    const maxLabels = 2;
+    final visible = dayEvents.take(maxLabels).toList();
+    final overflow = dayEvents.length - visible.length;
+
+    BoxDecoration? numberDecoration;
+    Color numberColor;
+    if (isSelected) {
+      numberDecoration = const BoxDecoration(
+          color: Colors.blueAccent, shape: BoxShape.circle);
+      numberColor = Colors.white;
+    } else if (isToday) {
+      numberDecoration = const BoxDecoration(
+          color: Colors.orangeAccent, shape: BoxShape.circle);
+      numberColor = Colors.white;
+    } else {
+      numberColor = isOutside ? Colors.grey.shade400 : Colors.black87;
     }
 
-    final visibleColors = memberColors.take(maxDots).toList();
-    final overflow = memberColors.length - visibleColors.length;
-
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 3),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final color in visibleColors)
-              Container(
-                width: 6,
-                height: 6,
-                margin: const EdgeInsets.symmetric(horizontal: 1),
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: numberDecoration,
+            child: Text(
+              '${day.day}',
+              style: TextStyle(
+                fontSize: 13,
+                color: numberColor,
+                fontWeight:
+                    (isToday || isSelected) ? FontWeight.bold : FontWeight.normal,
               ),
-            if (overflow > 0)
-              Padding(
-                padding: const EdgeInsets.only(left: 1),
-                child: Text(
-                  '+$overflow',
-                  style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold),
+            ),
+          ),
+          for (final event in visible)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                color: event.color,
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Text(
+                event.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 8,
+                  height: 1.2,
+                  color: _contrastColor(event.color),
                 ),
               ),
-          ],
-        ),
+            ),
+          if (overflow > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Text(
+                '+$overflow',
+                style: const TextStyle(fontSize: 8, color: Colors.grey),
+              ),
+            ),
+        ],
       ),
     );
+  }
+
+  // Pick black or white text depending on how light the background colour is,
+  // so labels stay readable on both pastel and dark family colours.
+  Color _contrastColor(Color background) {
+    return background.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
   }
 
   // The list below the calendar
@@ -209,7 +248,9 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               shape: BoxShape.circle,
             ),
           ),
-          title: Text(event.title),
+          title: Text(
+            event.count > 1 ? '${event.title}  ×${event.count}' : event.title,
+          ),
           subtitle: Text(event.type.name.toUpperCase()),
         );
       },
