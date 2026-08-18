@@ -7,7 +7,7 @@ import '../logic/date_provider.dart';
 import '../logic/medication_provider.dart';
 
 class AddMedicationSheet extends ConsumerStatefulWidget {
-  final Medication? medicationToEdit; 
+  final Medication? medicationToEdit;
 
   const AddMedicationSheet({super.key, this.medicationToEdit});
 
@@ -44,11 +44,12 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
   ];
 
   // Quick chips that should default to a specific type and duration
-  static const _quickChipDefaults = <String, ({MedicationType type, int? days})>{
-    "Antibiotic": (type: MedicationType.temporary, days: 7),
-    "Navisin": (type: MedicationType.temporary, days: 7),
-    "Antifungal Cream": (type: MedicationType.temporary, days: 7),
-  };
+  static const _quickChipDefaults =
+      <String, ({MedicationType type, int? days})>{
+        "Antibiotic": (type: MedicationType.temporary, days: 7),
+        "Navisin": (type: MedicationType.temporary, days: 7),
+        "Antifungal Cream": (type: MedicationType.temporary, days: 7),
+      };
 
   // Suggested warning statements for specific quick-chip medications
   static const _quickChipWarnings = <String, String>{
@@ -139,251 +140,303 @@ class _AddMedicationSheetState extends ConsumerState<AddMedicationSheet> {
     return Padding(
       // This padding makes the sheet avoid the keyboard when it opens,
       // and also accounts for the system navigation bar (Back/Home/Recents).
+      // It sits OUTSIDE the scroll view so the keyboard shrinks the scrollable
+      // viewport — that's what lets Flutter scroll the focused field (name or
+      // warning) into view instead of leaving it hidden behind the keyboard.
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom +
+        bottom:
+            MediaQuery.of(context).viewInsets.bottom +
             MediaQuery.of(context).padding.bottom,
-        left: 16,
-        right: 16,
-        top: 16,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("New Medication", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          // Family Member Selection, horizontal scroll
-          SizedBox(
-            height: 60,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: familyMembers.length,
-              itemBuilder:(context, index) {
-                final member = familyMembers[index];
-                final isSelected = member.id == _selectedMemberId;
-
-                return Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: ChoiceChip(
-                    label: Text(member.name),
-                    selected: isSelected,
-                    // Show a checkmark if selected
-                    avatar: isSelected ? null : CircleAvatar(
-                    backgroundColor: Color(member.colorValue),
-                    child: Text(member.name[0], style: const TextStyle(fontSize: 10)),
-                  ),
-                  onSelected: (bool selected) {
-                    setState(() {
-                      _selectedMemberId = member.id;
-                    });
-                  },
-                ),
-                );
-              },
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "New Medication",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Medication Name Input
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: "Medication Name",
-              hintText: "e.g., Ibuprofen",
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Quick Chips Row
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: _quickChipNames.map((name) => Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: FilterChip(
-                  label: Text(name),
-                  selected: name == _selectedQuickChipName,
-                  onSelected: (_) => _fillName(name),
-                ),
-              )).toList(),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Type Selection
-          SegmentedButton<MedicationType>(
-            segments: const [
-              ButtonSegment<MedicationType>(
-                value: MedicationType.oneOff,
-                label: Text("One Off"),
-              ),
-              ButtonSegment<MedicationType>(
-                value: MedicationType.temporary,
-                label: Text("Temporary"),
-              ),
-              ButtonSegment<MedicationType>(
-                value: MedicationType.permanent,
-                label: Text("Permanent"),
-              ),
-            ],
-            selected: {_selectedType},
-            onSelectionChanged: (Set<MedicationType> newSelection) {
-              setState(() {
-                _selectedType = newSelection.first;
-              });
-            },
-          ),
-
-          // Duration Slider for Temporary type
-          if (_selectedType == MedicationType.temporary) ...[
             const SizedBox(height: 16),
-            Text("Duration: ${_durationDays.toInt()} days"),
-            Slider(
-              value: _durationDays,
-              min: 1,
-              max: 14,
-              divisions: 13,
-              label: _durationDays.toInt().toString(),
-              onChanged: (double value) {
+            // Family Member Selection, horizontal scroll
+            SizedBox(
+              height: 60,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: familyMembers.length,
+                itemBuilder: (context, index) {
+                  final member = familyMembers[index];
+                  final isSelected = member.id == _selectedMemberId;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: ChoiceChip(
+                      label: Text(member.name),
+                      selected: isSelected,
+                      // Show a checkmark if selected
+                      avatar: isSelected
+                          ? null
+                          : CircleAvatar(
+                              backgroundColor: Color(member.colorValue),
+                              child: Text(
+                                member.name[0],
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            ),
+                      onSelected: (bool selected) {
+                        setState(() {
+                          _selectedMemberId = member.id;
+                        });
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Medication Name Input
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: "Medication Name",
+                hintText: "e.g., Ibuprofen",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Quick Chips Row
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _quickChipNames
+                    .map(
+                      (name) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FilterChip(
+                          label: Text(name),
+                          selected: name == _selectedQuickChipName,
+                          onSelected: (_) => _fillName(name),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Type Selection
+            SegmentedButton<MedicationType>(
+              segments: const [
+                ButtonSegment<MedicationType>(
+                  value: MedicationType.oneOff,
+                  label: Text("One Off"),
+                ),
+                ButtonSegment<MedicationType>(
+                  value: MedicationType.temporary,
+                  label: Text("Temporary"),
+                ),
+                ButtonSegment<MedicationType>(
+                  value: MedicationType.permanent,
+                  label: Text("Permanent"),
+                ),
+              ],
+              selected: {_selectedType},
+              onSelectionChanged: (Set<MedicationType> newSelection) {
                 setState(() {
-                  _durationDays = value;
+                  _selectedType = newSelection.first;
                 });
               },
             ),
+
+            // Duration Slider for Temporary type
+            if (_selectedType == MedicationType.temporary) ...[
+              const SizedBox(height: 16),
+              Text("Duration: ${_durationDays.toInt()} days"),
+              Slider(
+                value: _durationDays,
+                min: 1,
+                max: 14,
+                divisions: 13,
+                label: _durationDays.toInt().toString(),
+                onChanged: (double value) {
+                  setState(() {
+                    _durationDays = value;
+                  });
+                },
+              ),
+            ],
+
+            const SizedBox(height: 16),
+
+            // Warning Input
+            TextField(
+              controller: _warningController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: "Warning (optional)",
+                hintText: "e.g., take every 6 hours, not less",
+                prefixIcon: Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange,
+                ),
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            const Divider(height: 30),
+
+            // DATE PICKER ROW
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 18, color: Colors.grey),
+                const SizedBox(width: 8),
+                // Flexible (rather than a fixed Text + Spacer) so the buttons
+                // always fit on narrow phones instead of being pushed off the
+                // edge of the row.
+                Expanded(
+                  child: Text(
+                    DateFormat.yMMMd().format(_selectedDate),
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: () => setState(() {
+                    final now = DateTime.now();
+                    _selectedDate = DateTime(now.year, now.month, now.day);
+                  }),
+                  child: const Text('Today'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Pick'),
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) setState(() => _selectedDate = picked);
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // TIME PICKER ROW
+            Row(
+              children: [
+                const Icon(Icons.access_time, size: 18, color: Colors.grey),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _selectedTime.format(context),
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: () =>
+                      setState(() => _selectedTime = TimeOfDay.now()),
+                  child: const Text('Now'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Pick'),
+                  onPressed: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: _selectedTime,
+                    );
+                    if (picked != null) setState(() => _selectedTime = picked);
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // Save Button
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () {
+                  if (_nameController.text.isNotEmpty &&
+                      _selectedMemberId != null) {
+                    final takenAt = DateTime(
+                      _selectedDate.year,
+                      _selectedDate.month,
+                      _selectedDate.day,
+                      _selectedTime.hour,
+                      _selectedTime.minute,
+                    );
+                    final trimmedWarning = _warningController.text.trim();
+                    final warning = trimmedWarning.isEmpty
+                        ? null
+                        : trimmedWarning;
+                    // EDIT MODE
+                    if (widget.medicationToEdit != null) {
+                      ref
+                          .read(medicationProvider.notifier)
+                          .editMedication(
+                            id: widget.medicationToEdit!.id,
+                            name: _nameController.text,
+                            familyMemberId: _selectedMemberId!,
+                            type: _selectedType,
+                            durationInDays:
+                                _selectedType == MedicationType.temporary
+                                ? _durationDays.toInt()
+                                : null,
+                            originalStartDate: _selectedDate,
+                            warning: warning,
+                          );
+                    }
+                    // ADD MODE
+                    else {
+                      ref
+                          .read(medicationProvider.notifier)
+                          .addMedication(
+                            name: _nameController.text.trim(),
+                            familyMemberId: _selectedMemberId!,
+                            type: _selectedType,
+                            startDate: _selectedDate,
+                            durationInDays:
+                                _selectedType == MedicationType.temporary
+                                ? _durationDays.toInt()
+                                : null,
+                            takenAt: takenAt,
+                            warning: warning,
+                          );
+                    }
+
+                    Navigator.pop(context);
+                  }
+                },
+                child: Text(
+                  widget.medicationToEdit != null
+                      ? "Update Medication"
+                      : "Save Medication",
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
           ],
-
-          const SizedBox(height: 16),
-
-          // Warning Input
-          TextField(
-            controller: _warningController,
-            maxLines: 2,
-            decoration: const InputDecoration(
-              labelText: "Warning (optional)",
-              hintText: "e.g., take every 6 hours, not less",
-              prefixIcon: Icon(Icons.warning_amber_rounded, color: Colors.orange),
-              border: OutlineInputBorder(),
-            ),
-          ),
-
-          const Divider(height: 30),
-
-          // DATE PICKER ROW
-          Row(
-            children: [
-              const Icon(Icons.calendar_today, size: 18, color: Colors.grey),
-              const SizedBox(width: 8),
-              Text(
-                DateFormat.yMMMd().format(_selectedDate),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-              const Spacer(),
-              OutlinedButton(
-                onPressed: () => setState(() {
-                  final now = DateTime.now();
-                  _selectedDate = DateTime(now.year, now.month, now.day);
-                }),
-                child: const Text('Today'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.edit, size: 16),
-                label: const Text('Pick'),
-                onPressed: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _selectedDate,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now().add(const Duration(days: 365)),
-                  );
-                  if (picked != null) setState(() => _selectedDate = picked);
-                },
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // TIME PICKER ROW
-          Row(
-            children: [
-              const Icon(Icons.access_time, size: 18, color: Colors.grey),
-              const SizedBox(width: 8),
-              Text(
-                _selectedTime.format(context),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-              const Spacer(),
-              OutlinedButton(
-                onPressed: () => setState(() => _selectedTime = TimeOfDay.now()),
-                child: const Text('Now'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.edit, size: 16),
-                label: const Text('Pick'),
-                onPressed: () async {
-                  final picked = await showTimePicker(
-                    context: context,
-                    initialTime: _selectedTime,
-                  );
-                  if (picked != null) setState(() => _selectedTime = picked);
-                },
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
-          // Save Button
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () {
-                if (_nameController.text.isNotEmpty && _selectedMemberId != null) {
-                final takenAt = DateTime(
-                  _selectedDate.year, _selectedDate.month, _selectedDate.day,
-                  _selectedTime.hour, _selectedTime.minute,
-                );
-                final trimmedWarning = _warningController.text.trim();
-                final warning = trimmedWarning.isEmpty ? null : trimmedWarning;
-                // EDIT MODE
-                if (widget.medicationToEdit != null) {
-                  ref.read(medicationProvider.notifier).editMedication(
-                    id: widget.medicationToEdit!.id,
-                    name: _nameController.text,
-                    familyMemberId: _selectedMemberId!,
-                    type: _selectedType,
-                    durationInDays: _selectedType == MedicationType.temporary ? _durationDays.toInt() : null,
-                    originalStartDate: _selectedDate,
-                    warning: warning,
-                  );
-                }
-                // ADD MODE
-                else {
-                  ref.read(medicationProvider.notifier).addMedication(
-                    name: _nameController.text.trim(),
-                    familyMemberId: _selectedMemberId!,
-                    type: _selectedType,
-                    startDate: _selectedDate,
-                    durationInDays: _selectedType == MedicationType.temporary ? _durationDays.toInt() : null,
-                    takenAt: takenAt,
-                    warning: warning,
-                  );
-                }
-
-                Navigator.pop(context);
-                }
-              },
-              child: Text(widget.medicationToEdit != null ? "Update Medication" : "Save Medication"),
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
+        ),
       ),
     );
   }
 }
-

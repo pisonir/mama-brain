@@ -12,10 +12,13 @@ class AppUser {
   });
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> data) {
+    // Read defensively: a partially-written profile doc must not throw, or the
+    // user stream would error and the app would bounce a signed-in user back
+    // to the login screen.
     return AppUser(
       uid: uid,
-      email: data['email'] as String,
-      displayName: data['displayName'] as String,
+      email: data['email'] as String? ?? '',
+      displayName: data['displayName'] as String? ?? '',
       groupId: data['groupId'] as String?,
     );
   }

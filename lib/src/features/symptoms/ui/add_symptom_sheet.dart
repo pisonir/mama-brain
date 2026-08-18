@@ -35,7 +35,11 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
       _selectedMemberId = symptom.familyMemberId;
       _selectedType = symptom.type;
       _noteController.text = symptom.note ?? '';
-      _selectedDate = DateTime(symptom.timestamp.year, symptom.timestamp.month, symptom.timestamp.day);
+      _selectedDate = DateTime(
+        symptom.timestamp.year,
+        symptom.timestamp.month,
+        symptom.timestamp.day,
+      );
       _selectedTime = TimeOfDay.fromDateTime(symptom.timestamp);
 
       if (symptom.type == SymptomType.fever &&
@@ -70,187 +74,205 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
     return Padding(
       // This padding makes the sheet avoid the keyboard when it opens,
       // and also accounts for the system navigation bar (Back/Home/Recents).
+      // It sits OUTSIDE the scroll view so the keyboard shrinks the scrollable
+      // viewport — that's what lets Flutter scroll the focused field (e.g. the
+      // note) into view instead of leaving it hidden behind the keyboard.
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom +
+        bottom:
+            MediaQuery.of(context).viewInsets.bottom +
             MediaQuery.of(context).padding.bottom,
-        left: 16,
-        right: 16,
-        top: 16,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                "Add Symptom",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // WHO?
-          if (familyMembers.isEmpty)
-            const Text(
-              "Please add a family member first in the Medications tab.",
-              style: TextStyle(color: Colors.red),
-            )
-          else
-            SizedBox(
-              height: 60,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: familyMembers.length,
-                itemBuilder: (context, index) {
-                  final member = familyMembers[index];
-                  final isSelected = member.id == _selectedMemberId;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: ChoiceChip(
-                      label: Text(member.name),
-                      selected: isSelected,
-                      avatar: isSelected
-                          ? null
-                          : CircleAvatar(
-                              backgroundColor: Color(member.colorValue),
-                              child: Text(
-                                member.name[0],
-                                style: const TextStyle(fontSize: 10),
-                              ),
-                            ),
-                      onSelected: (selected) {
-                        setState(() => _selectedMemberId = member.id);
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-          const SizedBox(height: 20),
-
-          // The Chips Grid
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: SymptomType.values.map((type) {
-              final isSelected = _selectedType == type;
-              return FilterChip(
-                label: Text(type.label),
-                selected: isSelected,
-                showCheckmark: false,
-                color: WidgetStatePropertyAll(
-                  isSelected ? Colors.pink.shade100 : null,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Add Symptom",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-                onSelected: (selected) {
-                  setState(() => _selectedType = type);
-                },
-                avatar: Icon(_getIconForType(type), size: 18),
-              );
-            }).toList(),
-          ),
-
-          const Divider(height: 30),
-
-          // DATE PICKER ROW
-          Row(
-            children: [
-              const Icon(Icons.calendar_today, size: 18, color: Colors.grey),
-              const SizedBox(width: 8),
-              Text(
-                DateFormat.yMMMd().format(_selectedDate),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-              const Spacer(),
-              OutlinedButton(
-                onPressed: () => setState(() {
-                  final now = DateTime.now();
-                  _selectedDate = DateTime(now.year, now.month, now.day);
-                }),
-                child: const Text('Today'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.edit, size: 16),
-                label: const Text('Pick'),
-                onPressed: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _selectedDate,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now().add(const Duration(days: 365)),
-                  );
-                  if (picked != null) setState(() => _selectedDate = picked);
-                },
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // TIME PICKER ROW
-          Row(
-            children: [
-              const Icon(Icons.access_time, size: 18, color: Colors.grey),
-              const SizedBox(width: 8),
-              Text(
-                _selectedTime.format(context),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-              ),
-              const Spacer(),
-              OutlinedButton(
-                onPressed: () => setState(() => _selectedTime = TimeOfDay.now()),
-                child: const Text('Now'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.edit, size: 16),
-                label: const Text('Pick'),
-                onPressed: () async {
-                  final picked = await showTimePicker(
-                    context: context,
-                    initialTime: _selectedTime,
-                  );
-                  if (picked != null) setState(() => _selectedTime = picked);
-                },
-              ),
-            ],
-          ),
-
-          const Divider(height: 30),
-
-          // DETAILS
-          _buildDynamicDetails(),
-
-          const SizedBox(height: 10),
-          TextField(
-            controller: _noteController,
-            decoration: const InputDecoration(
-              labelText: "Note (Optional)",
-              hintText: "e.g. Gave water, sleeping now",
-              border: OutlineInputBorder(),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
             ),
-          ),
+            const SizedBox(height: 16),
 
-          const SizedBox(height: 20),
+            // WHO?
+            if (familyMembers.isEmpty)
+              const Text(
+                "Please add a family member first in the Medications tab.",
+                style: TextStyle(color: Colors.red),
+              )
+            else
+              SizedBox(
+                height: 60,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: familyMembers.length,
+                  itemBuilder: (context, index) {
+                    final member = familyMembers[index];
+                    final isSelected = member.id == _selectedMemberId;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: ChoiceChip(
+                        label: Text(member.name),
+                        selected: isSelected,
+                        avatar: isSelected
+                            ? null
+                            : CircleAvatar(
+                                backgroundColor: Color(member.colorValue),
+                                child: Text(
+                                  member.name[0],
+                                  style: const TextStyle(fontSize: 10),
+                                ),
+                              ),
+                        onSelected: (selected) {
+                          setState(() => _selectedMemberId = member.id);
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 20),
 
-          // SAVE BUTTON
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _saveSymptom,
-              child: const Text("Save Entry"),
+            // The Chips Grid
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: SymptomType.values.map((type) {
+                final isSelected = _selectedType == type;
+                return FilterChip(
+                  label: Text(type.label),
+                  selected: isSelected,
+                  showCheckmark: false,
+                  color: WidgetStatePropertyAll(
+                    isSelected ? Colors.pink.shade100 : null,
+                  ),
+                  onSelected: (selected) {
+                    setState(() => _selectedType = type);
+                  },
+                  avatar: Icon(_getIconForType(type), size: 18),
+                );
+              }).toList(),
             ),
-          ),
 
-          const SizedBox(height: 20),
-        ],
+            const Divider(height: 30),
+
+            // DATE PICKER ROW
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, size: 18, color: Colors.grey),
+                const SizedBox(width: 8),
+                // Flexible (rather than a fixed Text + Spacer) so the buttons
+                // always fit on narrow phones instead of being pushed off the
+                // edge of the row.
+                Expanded(
+                  child: Text(
+                    DateFormat.yMMMd().format(_selectedDate),
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: () => setState(() {
+                    final now = DateTime.now();
+                    _selectedDate = DateTime(now.year, now.month, now.day);
+                  }),
+                  child: const Text('Today'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Pick'),
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) setState(() => _selectedDate = picked);
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // TIME PICKER ROW
+            Row(
+              children: [
+                const Icon(Icons.access_time, size: 18, color: Colors.grey),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _selectedTime.format(context),
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: () =>
+                      setState(() => _selectedTime = TimeOfDay.now()),
+                  child: const Text('Now'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('Pick'),
+                  onPressed: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: _selectedTime,
+                    );
+                    if (picked != null) setState(() => _selectedTime = picked);
+                  },
+                ),
+              ],
+            ),
+
+            const Divider(height: 30),
+
+            // DETAILS
+            _buildDynamicDetails(),
+
+            const SizedBox(height: 10),
+            TextField(
+              controller: _noteController,
+              decoration: const InputDecoration(
+                labelText: "Note (Optional)",
+                hintText: "e.g. Gave water, sleeping now",
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // SAVE BUTTON
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _saveSymptom,
+                child: const Text("Save Entry"),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
@@ -285,8 +307,11 @@ class _AddSymptomSheetState extends ConsumerState<AddSymptomSheet> {
     }
 
     final timestamp = DateTime(
-      _selectedDate.year, _selectedDate.month, _selectedDate.day,
-      _selectedTime.hour, _selectedTime.minute,
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _selectedTime.hour,
+      _selectedTime.minute,
     );
 
     // Edit mode

@@ -9,32 +9,65 @@ import '../../../core/models/symptom.dart';
 import '../../../core/models/family_member.dart';
 import '../../family/logic/family_provider.dart';
 
+/// Symptom identity used for grouping: 'other' symptoms group by their note
+/// text (so different free-text symptoms stay separate); the rest group by type.
+String symptomIdentity(Symptom s) =>
+    s.type == SymptomType.other ? 'other:${s.note ?? ''}' : s.type.name;
+
+/// One person's symptoms for the selected day, already collapsed into blocks
+/// of repeated symptoms.
+class PersonSymptoms {
+  final String familyMemberId;
+  final List<List<Symptom>> blocks;
+
+  PersonSymptoms({required this.familyMemberId, required this.blocks});
+}
+
+/// Groups a day's symptoms by person, then collapses repeats of the same
+/// symptom within each person into a block. People are returned in the family
+/// list's own order, so the tab reads person-by-person (issue #1).
+List<PersonSymptoms> groupSymptomsByPerson(
+  List<Symptom> symptoms,
+  List<FamilyMember> family,
+) {
+  // Person -> symptom identity -> occurrences
+  final byPerson = <String, Map<String, List<Symptom>>>{};
+  for (final s in symptoms) {
+    byPerson
+        .putIfAbsent(s.familyMemberId, () => {})
+        .putIfAbsent(symptomIdentity(s), () => [])
+        .add(s);
+  }
+
+  // Family order first; any member no longer in the family list goes last so
+  // their history never silently disappears.
+  final orderedIds = [
+    ...family.map((m) => m.id).where(byPerson.containsKey),
+    ...byPerson.keys.where((id) => !family.any((m) => m.id == id)),
+  ];
+
+  return [
+    for (final id in orderedIds)
+      PersonSymptoms(
+        familyMemberId: id,
+        blocks: byPerson[id]!.values.map((entries) {
+          final sorted = [...entries]
+            ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          return sorted;
+        }).toList()
+          ..sort((a, b) => a.first.timestamp.compareTo(b.first.timestamp)),
+      ),
+  ];
+}
+
 class SymptomsPage extends ConsumerWidget {
   const SymptomsPage({super.key});
-
-  // Symptom identity for grouping: 'other' symptoms group by their note text
-  // (so different free-text symptoms stay separate); the rest group by type.
-  static String _identity(Symptom s) =>
-      s.type == SymptomType.other ? 'other:${s.note ?? ''}' : s.type.name;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final symptoms = ref.watch(dailySymptomProvider);
     final family = ref.watch(familyProvider);
-
-    // Collapse repeats of the same symptom for the same person into one block,
-    // with each occurrence shown as a row inside (issue #4).
-    final groups = <String, List<Symptom>>{};
-    for (final s in symptoms) {
-      groups
-          .putIfAbsent('${s.familyMemberId}###${_identity(s)}', () => [])
-          .add(s);
-    }
-    for (final entries in groups.values) {
-      entries.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    }
-    final blocks = groups.values.toList()
-      ..sort((a, b) => a.first.timestamp.compareTo(b.first.timestamp));
+    final sections = groupSymptomsByPerson(symptoms, family);
 
     return Scaffold(
       appBar: AppBar(
@@ -51,10 +84,13 @@ class SymptomsPage extends ConsumerWidget {
             child: symptoms.isEmpty
                 ? const Center(child: Text('No symptoms recorded.'))
                 : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: blocks.length,
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    itemCount: sections.length,
                     itemBuilder: (context, index) {
-                      return _SymptomBlock(entries: blocks[index], family: family);
+                      return _PersonSection(
+                        section: sections[index],
+                        family: family,
+                      );
                     },
                   ),
           ),
@@ -75,27 +111,80 @@ class SymptomsPage extends ConsumerWidget {
   }
 }
 
-// One block per (person, symptom). Shows the member and symptom title once,
-// then a row per occurrence with its time, details, and edit/delete actions.
-class _SymptomBlock extends ConsumerWidget {
-  final List<Symptom> entries;
+// All of one person's symptoms for the day, under a single person header, so
+// you can read through one person before moving on to the next.
+class _PersonSection extends StatelessWidget {
+  final PersonSymptoms section;
   final List<FamilyMember> family;
 
-  const _SymptomBlock({required this.entries, required this.family});
+  const _PersonSection({required this.section, required this.family});
+
+  @override
+  Widget build(BuildContext context) {
+    final member = family.firstWhere(
+      (m) => m.id == section.familyMemberId,
+      orElse: () =>
+          FamilyMember(id: '', name: 'Unknown', colorValue: 0xFF9E9E9E),
+    );
+    final color = Color(member.colorValue);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8, top: 4),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 14,
+                backgroundColor: color,
+                child: Text(
+                  member.name.isNotEmpty
+                      ? member.name.substring(0, 1).toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                member.name,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Divider(color: color.withValues(alpha: 0.3))),
+            ],
+          ),
+        ),
+        for (final block in section.blocks)
+          _SymptomBlock(entries: block, color: color),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+}
+
+// One block per repeated symptom. The person is already named by the section
+// header above, so the block only shows the symptom and its occurrences.
+class _SymptomBlock extends ConsumerWidget {
+  final List<Symptom> entries;
+  final Color color;
+
+  const _SymptomBlock({required this.entries, required this.color});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s0 = entries.first;
-    final member = family.firstWhere(
-      (m) => m.id == s0.familyMemberId,
-      orElse: () => family.isNotEmpty
-          ? family.first
-          : FamilyMember(id: '', name: 'Unknown', colorValue: 0xFF9E9E9E),
-    );
-    final color = Color(member.colorValue);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -107,21 +196,13 @@ class _SymptomBlock extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                member.name,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+              Expanded(
+                child: Text(
+                  _title(s0),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
-              const Spacer(),
               if (entries.length > 1)
                 Text(
                   '${entries.length}×',
@@ -134,11 +215,6 @@ class _SymptomBlock extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 4),
-          Text(
-            _title(s0),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
           for (final s in entries) _entryRow(context, ref, s),
         ],
       ),
@@ -149,11 +225,10 @@ class _SymptomBlock extends ConsumerWidget {
     final detail = _detail(s);
     // Show the note here only for typed symptoms — for 'other' the note IS the
     // block title, so repeating it in the row would be redundant.
-    final note = (s.type != SymptomType.other &&
-            s.note != null &&
-            s.note!.isNotEmpty)
-        ? s.note
-        : null;
+    final note =
+        (s.type != SymptomType.other && s.note != null && s.note!.isNotEmpty)
+            ? s.note
+            : null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),

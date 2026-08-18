@@ -4,6 +4,7 @@ import 'package:table_calendar/table_calendar.dart';
 import '../../../core/models/family_member.dart';
 import '../../family/logic/family_provider.dart';
 import '../logic/history_event.dart';
+import '../logic/history_grouping.dart';
 import '../logic/history_provider.dart';
 
 class HistoryPage extends ConsumerStatefulWidget {
@@ -18,6 +19,14 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
+  // Height of one week row. Tall enough for the day number plus three compact
+  // event lines underneath it.
+  static const double _rowHeight = 78;
+
+  // Most lines shown under a day number. When a day has more events than this,
+  // the last line becomes a "+N" tally so the cell never grows past three.
+  static const int _maxCellLines = 3;
+
   @override
   Widget build(BuildContext context) {
     final events = ref.watch(historyEventsProvider);
@@ -28,7 +37,10 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
         title: const Text('Family History'),
         centerTitle: true,
       ),
-      body: Column(
+      // The whole page scrolls. With taller calendar rows a six-week month is
+      // too tall for a fixed column on smaller phones, which would clip the
+      // day list underneath it.
+      body: ListView(
         children: [
           TableCalendar(
             firstDay: DateTime.utc(2026, 1, 1),
@@ -36,9 +48,10 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
             focusedDay: _focusedDay,
             calendarFormat: _calendarFormat,
             startingDayOfWeek: StartingDayOfWeek.monday,
-            // Taller rows leave room for the day number plus a couple of
-            // event labels underneath it without crowding.
-            rowHeight: 70,
+            rowHeight: _rowHeight,
+            // Only horizontal swipes change the month, so vertical drags scroll
+            // the page instead of fighting the calendar.
+            availableGestures: AvailableGestures.horizontalSwipe,
 
             selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
 
@@ -55,12 +68,10 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               });
             },
 
-            // Fully custom cells: day number on top, then up to two compact
-            // event labels (medication/symptom names) coloured per family
-            // member. The number always stays visible above the labels.
+            // Fully custom cells: day number on top, then compact event labels
+            // (medications first, then symptoms) coloured per family member.
             calendarBuilders: CalendarBuilders(
-              defaultBuilder: (context, day, _) =>
-                  _buildCell(day, events),
+              defaultBuilder: (context, day, _) => _buildCell(day, events),
               outsideBuilder: (context, day, _) =>
                   _buildCell(day, events, isOutside: true),
               todayBuilder: (context, day, _) =>
@@ -80,11 +91,13 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
           if (familyMembers.isNotEmpty) _buildFamilyLegend(familyMembers),
 
           // Legend / details for selected day
-          Expanded(
-            child: _selectedDay == null
-                ? const Center(child: Text('Select a day to see details.'))
-                : _buildDayDetails(events),
-          ),
+          if (_selectedDay == null)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: Text('Select a day to see details.')),
+            )
+          else
+            _buildDayDetails(events),
         ],
       ),
     );
@@ -134,10 +147,12 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     );
   }
 
-  // A single calendar cell: the day number on top, then up to two compact
-  // event labels (medication/symptom names) tinted with the family member's
-  // colour. Any further events collapse into a "+N" line. The number always
-  // stays above the labels, so it's never covered.
+  // A single calendar cell: the day number on top, then up to three compact
+  // event lines (medications first, then symptoms) tinted with the family
+  // member's colour.
+  //
+  // The column is top-aligned and fills the cell height, so the day number sits
+  // at exactly the same height on every day — busy or empty (issue #3).
   Widget _buildCell(
     DateTime day,
     Map<DateTime, List<HistoryEvent>> allEvents, {
@@ -148,19 +163,22 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     final normalized = DateTime(day.year, day.month, day.day);
     final dayEvents = allEvents[normalized] ?? [];
 
-    const maxLabels = 2;
-    final visible = dayEvents.take(maxLabels).toList();
+    // Keep the total number of lines under the day number at _maxCellLines: on
+    // a busy day the last line is given over to the "+N" tally.
+    final needsTally = dayEvents.length > _maxCellLines;
+    final visible =
+        dayEvents.take(needsTally ? _maxCellLines - 1 : _maxCellLines).toList();
     final overflow = dayEvents.length - visible.length;
 
     BoxDecoration? numberDecoration;
     Color numberColor;
     if (isSelected) {
-      numberDecoration = const BoxDecoration(
-          color: Colors.blueAccent, shape: BoxShape.circle);
+      numberDecoration =
+          const BoxDecoration(color: Colors.blueAccent, shape: BoxShape.circle);
       numberColor = Colors.white;
     } else if (isToday) {
-      numberDecoration = const BoxDecoration(
-          color: Colors.orangeAccent, shape: BoxShape.circle);
+      numberDecoration =
+          const BoxDecoration(color: Colors.orangeAccent, shape: BoxShape.circle);
       numberColor = Colors.white;
     } else {
       numberColor = isOutside ? Colors.grey.shade400 : Colors.black87;
@@ -169,7 +187,10 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     return Padding(
       padding: const EdgeInsets.all(2),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        // Fill the cell and pin content to the top so every day number lines up
+        // on the same baseline, however many events a day has.
+        mainAxisSize: MainAxisSize.max,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Container(
             width: 26,
@@ -212,7 +233,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               padding: const EdgeInsets.only(top: 1),
               child: Text(
                 '+$overflow',
-                style: const TextStyle(fontSize: 8, color: Colors.grey),
+                style: const TextStyle(fontSize: 8, height: 1.2, color: Colors.grey),
               ),
             ),
         ],
@@ -226,34 +247,93 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     return background.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
   }
 
-  // The list below the calendar
+  // The list below the calendar, grouped per person so you can read through one
+  // person's day before moving to the next (issue #3). The medication/symptom
+  // category is intentionally not shown — the entry name already says what it
+  // is, and dropping it keeps the rows compact.
   Widget _buildDayDetails(Map<DateTime, List<HistoryEvent>> allEvents) {
-    final normalized = DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
+    final normalized =
+        DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
     final dayEvents = allEvents[normalized] ?? [];
 
     if (dayEvents.isEmpty) {
-      return const Center(child: Text('No events for this day.'));
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: Text('No events for this day.')),
+      );
     }
 
-    return ListView.builder(
-      itemCount: dayEvents.length,
-      itemBuilder: (context, index) {
-        final event = dayEvents[index];
-        return ListTile(
-          leading: Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: event.color,
-              shape: BoxShape.circle,
+    final family = ref.watch(familyProvider);
+    final sections = groupEventsByPerson(dayEvents, family);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final section in sections) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 6),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 12,
+                    backgroundColor: section.color,
+                    child: Text(
+                      section.memberName.isNotEmpty
+                          ? section.memberName.substring(0, 1).toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    section.memberName,
+                    style: TextStyle(
+                      color: section.color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Divider(color: section.color.withValues(alpha: 0.3)),
+                  ),
+                ],
+              ),
             ),
-          ),
-          title: Text(
-            event.count > 1 ? '${event.title}  ×${event.count}' : event.title,
-          ),
-          subtitle: Text(event.type.name.toUpperCase()),
-        );
-      },
+            for (final event in section.events)
+              Padding(
+                padding: const EdgeInsets.only(left: 8, bottom: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      event.type == EventType.medication
+                          ? Icons.medication_liquid
+                          : Icons.thermostat,
+                      size: 16,
+                      color: Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        event.count > 1
+                            ? '${event.title}  ×${event.count}'
+                            : event.title,
+                        style: const TextStyle(fontSize: 15),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ],
+      ),
     );
   }
 }

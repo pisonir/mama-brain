@@ -555,6 +555,109 @@ void main() {
         container.dispose();
       });
 
+      test('medications are ordered before symptoms for the same day', () {
+        // The calendar lists the medicine under the day number first, then the
+        // symptoms (issue #3).
+        final symptoms = [
+          Symptom(
+            id: 's1',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15, 6, 0),
+            type: SymptomType.fever,
+          ),
+        ];
+        final meds = [
+          Medication(
+            id: 'm1',
+            name: 'Paracetamol',
+            familyMemberId: 'fm-1',
+            type: MedicationType.oneOff,
+            startDate: DateTime(2025, 6, 15),
+            // Taken after the symptom was logged, so ordering can't be
+            // accidentally passing because of timestamps.
+            takenLogs: [DateTime(2025, 6, 15, 20, 0)],
+          ),
+        ];
+
+        final container = makeContainer(medications: meds, symptoms: symptoms);
+        final events = container.read(historyEventsProvider);
+        final dayEvents = events[normalize(DateTime(2025, 6, 15))]!;
+
+        expect(dayEvents.map((e) => e.type).toList(),
+            [EventType.medication, EventType.symptom]);
+        container.dispose();
+      });
+
+      test('events carry the family member id and name', () {
+        final symptoms = [
+          Symptom(
+            id: 's1',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15),
+            type: SymptomType.fever,
+          ),
+        ];
+
+        final container = makeContainer(symptoms: symptoms);
+        final event =
+            container.read(historyEventsProvider)[normalize(DateTime(2025, 6, 15))]!
+                .first;
+
+        expect(event.familyMemberId, 'fm-1');
+        expect(event.memberName, 'Alice');
+        container.dispose();
+      });
+
+      test('events for an unknown member fall back to a neutral identity', () {
+        final symptoms = [
+          Symptom(
+            id: 's1',
+            familyMemberId: 'ghost',
+            timestamp: DateTime(2025, 6, 15),
+            type: SymptomType.fever,
+          ),
+        ];
+
+        final container = makeContainer(symptoms: symptoms);
+        final event =
+            container.read(historyEventsProvider)[normalize(DateTime(2025, 6, 15))]!
+                .first;
+
+        expect(event.memberName, 'Unknown');
+        expect(event.color, const Color(0xFF9E9E9E));
+        container.dispose();
+      });
+
+      test('per-person ordering follows the family list', () {
+        final otherMember =
+            FamilyMember(id: 'fm-2', name: 'Bob', colorValue: 0xFF0000FF);
+        final symptoms = [
+          Symptom(
+            id: 's1',
+            familyMemberId: 'fm-2',
+            timestamp: DateTime(2025, 6, 15, 6),
+            type: SymptomType.fever,
+          ),
+          Symptom(
+            id: 's2',
+            familyMemberId: 'fm-1',
+            timestamp: DateTime(2025, 6, 15, 8),
+            type: SymptomType.fever,
+          ),
+        ];
+
+        final container = makeContainer(
+          family: [familyMember, otherMember],
+          symptoms: symptoms,
+        );
+        final dayEvents = container
+            .read(historyEventsProvider)[normalize(DateTime(2025, 6, 15))]!;
+
+        expect(dayEvents.map((e) => e.familyMemberId).toList(),
+            ['fm-1', 'fm-2']);
+        container.dispose();
+      });
+
       test('different medicines for the same person stay separate', () {
         final meds = [
           Medication(

@@ -12,8 +12,9 @@ final groupIdProvider = Provider<String?>((ref) {
 });
 
 /// Creates a new family group and assigns the user to it.
-Future<void> createFamilyGroup(String uid) async {
-  final firestore = FirebaseFirestore.instance;
+/// Returns the invite code so it can be shown to the user straight away.
+Future<String> createFamilyGroup(String uid, {FirebaseFirestore? db}) async {
+  final firestore = db ?? FirebaseFirestore.instance;
   final code = _generateInviteCode();
 
   // 1. Create the group doc
@@ -29,25 +30,37 @@ Future<void> createFamilyGroup(String uid) async {
     'groupId': groupRef.id,
   });
 
-  // 3. Update the user doc with the groupId
-  await firestore.collection('users').doc(uid).update({
-    'groupId': groupRef.id,
-  });
+  // 3. Attach the group to the user doc. A merging set (not `update`) so this
+  // still works when the profile doc is missing — otherwise a user whose doc
+  // was lost could never re-attach to a family.
+  await firestore.collection('users').doc(uid).set(
+    {'groupId': groupRef.id},
+    SetOptions(merge: true),
+  );
+
+  return code;
 }
 
 /// Joins an existing family group using an invite code.
 /// Returns true on success, false if the code is invalid.
-Future<bool> joinFamilyGroup(String uid, String code) async {
-  final firestore = FirebaseFirestore.instance;
+Future<bool> joinFamilyGroup(
+  String uid,
+  String code, {
+  FirebaseFirestore? db,
+}) async {
+  final firestore = db ?? FirebaseFirestore.instance;
 
   final codeDoc = await firestore.collection('inviteCodes').doc(code).get();
   if (!codeDoc.exists) return false;
 
   final groupId = codeDoc.data()!['groupId'] as String;
 
-  await firestore.collection('users').doc(uid).update({
-    'groupId': groupId,
-  });
+  // Merging set (not `update`) so rejoining works even if the profile doc went
+  // missing — this is the recovery path for a user who lost access.
+  await firestore.collection('users').doc(uid).set(
+    {'groupId': groupId},
+    SetOptions(merge: true),
+  );
 
   return true;
 }
